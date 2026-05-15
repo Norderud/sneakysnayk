@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Default console output for all application logs. -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Dedicated file for battle scores. Path is relative to the process
+         working directory; the file is created on first write. -->
+    <appender name="SCORE_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/scores.log</file>
+        <append>true</append>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Score events are written ONLY to scores.log (additivity=false
+         keeps them out of the console). Use logger name "score" in code. -->
+    <logger name="score" level="INFO" additivity="false">
+        <appender-ref ref="SCORE_FILE"/>
+    </logger>
+
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
+
