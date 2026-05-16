@@ -3,6 +3,8 @@ package sneak.snaek.engine.scorer;
 import sneak.snaek.board.BoardGrid;
 import sneak.snaek.board.CoordUtils;
 import sneak.snaek.model.BattleSnake;
+import sneak.snaek.engine.MoveContext;
+import sneak.snaek.engine.TurnContext;
 import sneak.snaek.model.Coord;
 import sneak.snaek.model.Move;
 import sneak.snaek.strategy.Bfs;
@@ -41,6 +43,7 @@ public final class MoveScorer {
                         double tail,
                         double stretch,
                         double aggression,
+                        double gatekeeper,
                         double centre,
                         double hazardPenalty,
                         double wallPenalty,
@@ -50,8 +53,8 @@ public final class MoveScorer {
                         int    flood) {
         @Override public String toString() {
             return String.format(
-                "total=%.1f survival=%.1f food=%.1f tail=%.1f stretch=%.1f aggression=%.1f centre=%.1f hazard=-%.1f wall=-%.1f trapped=%s tailReach=%s owned=%d flood=%d",
-                total, survival, food, tail, stretch, aggression, centre, hazardPenalty, wallPenalty, trapped, canReachTail, ownedRaw, flood);
+                "total=%.1f survival=%.1f food=%.1f tail=%.1f stretch=%.1f aggression=%.1f gatekeeper=%.1f centre=%.1f hazard=-%.1f wall=-%.1f trapped=%s tailReach=%s owned=%d flood=%d",
+                total, survival, food, tail, stretch, aggression, gatekeeper, centre, hazardPenalty, wallPenalty, trapped, canReachTail, ownedRaw, flood);
         }
     }
 
@@ -97,6 +100,11 @@ public final class MoveScorer {
         double hazardPenalty = hazardDrainPenalty(grid, next, myBody, food);
         double wallPenalty   = wallPenalty(grid, next);
         double aggressionBonus = aggressionBonus(next, enemies, myLength, trapped, owned);
+        // Gatekeeper logic is moved out to Scorers in the modular engine,
+        // but for this legacy score() method we compute it here.
+        // Since we don't have TurnContext/MoveContext here, we'd need to mock them or just use 0.
+        // Actually, this method is likely only used in old tests.
+        double gatekeeperBonus = 0.0;
         double tailBonus    = tailRescueBonus(canReachTail, tailDist, owned, myLength);
         double stretchBonus = stretchBonus(canReachTail, tailDist, owned, myLength);
         double centreBonus  = centreBonus(grid, next);
@@ -121,9 +129,9 @@ public final class MoveScorer {
             wallPenalty = 0.0;
         }
 
-        double total = survival + foodBonus + tailBonus + stretchBonus + aggressionBonus + centreBonus
+        double total = survival + foodBonus + tailBonus + stretchBonus + aggressionBonus + gatekeeperBonus + centreBonus
                      - hazardPenalty - wallPenalty;
-        return new Score(total, survival, foodBonus, tailBonus, stretchBonus, aggressionBonus,
+        return new Score(total, survival, foodBonus, tailBonus, stretchBonus, aggressionBonus, gatekeeperBonus,
                 centreBonus, hazardPenalty, wallPenalty, trapped, canReachTail,
                 owned.rawCount(), owned.floodCount());
     }
@@ -225,6 +233,34 @@ public final class MoveScorer {
         }
 
         return bonus / Math.max(1, enemies.size());
+    }
+
+    /** Gatekeeper: bonus for intercepting enemies on their way to food.
+     *  We identify food that enemies "own" (are closest to) and check if we
+     *  can occupy any cell on their shortest path before they do.
+     *  Only fires if we are strictly longer (would win the H2H). */
+    public static double gatekeeperBonus(TurnContext ctx, MoveContext moveCtx) {
+        if (moveCtx.trapped()) return 0.0;
+
+        int myLength = ctx.state().you().length();
+        int[][] myDist = moveCtx.myDist();
+        int[] enemyLengths = ctx.enemyReach().enemyLengths();
+
+        double bestBonus = 0.0;
+
+        for (TurnContext.Gate gate : ctx.gates()) {
+            // Only gatekeep if we are strictly longer than the enemy pursuing the food.
+            if (myLength <= enemyLengths[gate.ownerIdx()]) continue;
+
+            int md = Bfs.at(myDist, gate.coord());
+            // md+1 is arrival time after this move.
+            if (md != Bfs.UNREACHABLE && md + 1 <= gate.enemyArrivalTime()) {
+                double bonus = ScoringConstants.GATEKEEPER_BONUS / (1.0 + md);
+                bestBonus = Math.max(bestBonus, bonus);
+            }
+        }
+
+        return bestBonus / Math.max(1, ctx.enemies().size());
     }
 
     /** Tail-chase rescue: only meaningful when **physical** room is

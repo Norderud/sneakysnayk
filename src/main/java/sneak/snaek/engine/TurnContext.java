@@ -10,6 +10,7 @@ import sneak.snaek.strategy.Bfs;
 import sneak.snaek.engine.scorer.MoveScorer;
 import sneak.snaek.strategy.SurvivalArea;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,8 +26,10 @@ public record TurnContext(
         Bfs.EnemyReach enemyReach,
         double foodWeight,
         Coord myTail,
+        List<Gate> gates,
         long startTimeNanos
 ) {
+    public record Gate(Coord coord, int enemyArrivalTime, int ownerIdx) {}
     public static TurnContext from(GameState state) {
         long start = System.nanoTime();
         BoardGrid grid = new BoardGrid(state);
@@ -51,8 +54,34 @@ public record TurnContext(
                 state.you().length(), state.you().health(), inHazard, enemies);
         
         Coord myTail = state.you().body().getLast();
-        
-        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, start);
+
+        List<Gate> gates = new ArrayList<>();
+        int w = grid.getWidth(), h = grid.getHeight();
+        for (Coord f : food) {
+            int ownerIdx = enemyReach.owner()[f.x()][f.y()];
+            int edist = enemyReach.dist()[f.x()][f.y()];
+            if (ownerIdx != -1 && edist > 0) {
+                int cx = f.x(), cy = f.y(), cd = edist;
+                int steps = 0;
+                while (cd > 0 && steps < 100) {
+                    steps++;
+                    gates.add(new Gate(new Coord(cx, cy), cd, ownerIdx));
+                    boolean found = false;
+                    for (int i = 0; i < 4; i++) {
+                        int nx = cx + (i == 0 ? 1 : i == 1 ? -1 : 0);
+                        int ny = cy + (i == 2 ? 1 : i == 3 ? -1 : 0);
+                        if (nx >= 0 && nx < w && ny >= 0 && ny < h && enemyReach.dist()[nx][ny] == cd - 1) {
+                            cx = nx; cy = ny; cd--;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) break;
+                }
+            }
+        }
+
+        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, gates, start);
     }
     
     public long elapsedMillis() {

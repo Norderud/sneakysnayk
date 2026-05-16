@@ -42,6 +42,7 @@ public class ModularSnakeEngine {
                 .addScorer(new SurvivalScorer())
                 .addScorer(new FoodScorer())
                 .addScorer(new AggressionScorer())
+                .addScorer(new GatekeeperScorer())
                 .addScorer(new TailScorer())
                 .addScorer(new PositionScorer());
     }

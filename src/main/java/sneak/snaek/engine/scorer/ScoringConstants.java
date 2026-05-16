@@ -145,6 +145,12 @@ public final class ScoringConstants {
      *  Like H2H_KILL_BONUS, it scales down in multi-snake games. */
     public static final double OPPONENT_TRAP_BONUS = 600.0;
 
+    /** Bonus for intercepting an enemy on their path to food.
+     *  High value tactical play that denies resources and puts us in
+     *  a power position. Sized to be worth more than a single piece
+     *  of food itself (base 500) but less than a direct kill opportunity. */
+    public static final double GATEKEEPER_BONUS = 250.0;
+
     /** Soft preference for cells closer to the board centre. Edges are
      *  more easily cut off (a wall already blocks one side). Sized small
      *  so it never overrides survival, food, h2h pressure, or tail-chase

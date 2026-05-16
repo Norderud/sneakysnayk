@@ -39,6 +39,9 @@ already implemented (kept here for context). Tackle from the top.
 - **Refined Food Strategy** — Snake is less 'greedy'. It now avoids risky
   food (corners, near enemies) unless starving, and prioritises guaranteed
   food over contested ones.
+- **The Gatekeeper Persona** — Intercepts enemies on their way to food.
+  Identifies food items owned by enemies and prioritises moves that reach
+  cells on their shortest path first (if we have length advantage).
 
 ---
 
@@ -55,7 +58,7 @@ These behaviors shift the bot from "survival only" to active playstyles.
 *   **Implementation**: Add a scorer that penalizes moves based on the size of the Voronoi area remaining for the closest enemy.
 *   **Complexity**: **Medium**. Requires computing `SurvivalArea` from the enemy's perspective for each of our candidate moves.
 
-### 2. The Gatekeeper (Food/Path Blocking)
+### 2. ✅ The Gatekeeper (Food/Path Blocking)
 *   **Behavior**: Intercept enemies on their way to food.
 *   **Implementation**: Identify high-value food for enemies (via BFS) and prioritize moves that put us on their shortest path if we can reach it first (and are longer).
 *   **Complexity**: **Medium**. Done via BFS backtracking and `TurnContext` pre-calculation.
