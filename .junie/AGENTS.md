@@ -70,6 +70,9 @@ public class ModularSnakeEngineTest {
 - `mvn test`: Runs all unit tests.
 - `mvn test -Dtest=ClassName`: Runs a specific test class.
 
+## Git & Commits
+- **Commit Messages**: Do NOT include the "Co-authored-by: Junie <junie@jetbrains.com>" trailer in commit messages unless explicitly requested.
+
 ## Development & Debugging
 
 ### Logging
