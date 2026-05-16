@@ -50,10 +50,11 @@ already implemented (kept here for context). Tackle from the top.
 
 These behaviors shift the bot from "survival only" to active playstyles.
 
-### 1. The Territorial Bully (Aggressive Cornering)
+### 1. ✅ The Territorial Bully (Aggressive Cornering)
 *   **Behavior**: Minimize the space available to enemies.
-*   **Implementation**: Add a scorer that penalizes moves based on the size of the Voronoi area remaining for the closest enemy.
-*   **Complexity**: **Medium**. Requires computing `SurvivalArea` from the enemy's perspective for each of our candidate moves.
+*   **Implementation**: Smooth bonus for reducing enemy Voronoi area when they are getting cramped. Ramp up towards `OPPONENT_TRAP_BONUS`.
+*   **Update**: Increased `BULLY_SCORE_FACTOR` (50.0) and `BULLY_AREA_THRESHOLD_MULT` (3) for higher aggression.
+*   **Complexity**: **Medium**. Done via `SurvivalArea` and `AggressionScorer` update.
 
 ### 2. The Gatekeeper (Food/Path Blocking)
 *   **Behavior**: Intercept enemies on their way to food.

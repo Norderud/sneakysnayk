@@ -1,5 +1,6 @@
 param (
-    [string]$Url = "http://localhost:8080",
+    [string]$Url1 = "http://localhost:8080",
+    [string]$Url2 = "http://localhost:8081",
     [int]$Width = 11,
     [int]$Height = 11,
     [switch]$Browser
@@ -20,7 +21,7 @@ if (!(Test-Path $cliPath)) {
     }
 }
 
-$args = @("play", "--name", "Snake-A", "--url", $Url, "--name", "Snake-B", "--url", $Url, "--width", $Width, "--height", $Height)
+$args = @("play", "--name", "Snake-A", "--url", $Url1, "--name", "Snake-B", "--url", $Url2, "--width", $Width, "--height", $Height)
 if ($Browser) {
     $args += "--browser"
 }

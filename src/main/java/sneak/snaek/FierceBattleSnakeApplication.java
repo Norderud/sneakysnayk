@@ -50,7 +50,7 @@ public class FierceBattleSnakeApplication {
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
-        String color = args.length > 2 ? args[2] : "#393939";
+        String color = args.length > 2 ? args[2] : "#FFFB00";
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color);
@@ -70,7 +70,7 @@ public class FierceBattleSnakeApplication {
             response.put("apiversion", "1");
             response.put("author", "Sneaksnaek");
             response.put("color", snakeColor);
-            response.put("head", "workout");
+            response.put("head", "ski");
             response.put("tail", "bolt");
             String jsonResponse = gson.toJson(response);
             exchange.getResponseHeaders().set("Content-Type", "application/json");

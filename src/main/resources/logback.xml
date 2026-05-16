@@ -33,7 +33,7 @@
     </logger>
 
     <!-- Decision events are written ONLY to decisions.log -->
-    <logger name="decision" level="INFO" additivity="false">
+    <logger name="decision" level="OFF" additivity="false">
         <appender-ref ref="DECISION_FILE"/>
     </logger>
 

@@ -139,11 +139,23 @@ public final class ScoringConstants {
 
     /** Bonus for trapping an opponent (reducing their Voronoi-owned area
      *  below their body length). Being the one who "seals the deal" on
-     *  an enemy's survival is high value. Sized significantly (400)
+     *  an enemy's survival is high value. Sized significantly (600)
      *  to outweigh a food chase or a comfortable length lead, but still
      *  below TRAP_PENALTY (2000) so we don't suicide to kill.
      *  Like H2H_KILL_BONUS, it scales down in multi-snake games. */
     public static final double OPPONENT_TRAP_BONUS = 600.0;
+
+    /** Multiplier for each cell we "take away" from an enemy's Voronoi
+     *  area when they are already getting cramped (area < 3*length).
+     *  Creates a smooth gradient of aggression that ramps up to the
+     *  OPPONENT_TRAP_BONUS. Sized so that squeezing an enemy by 10
+     *  cells is worth 500 pts (comparable to FOOD_BONUS). */
+    public static final double BULLY_SCORE_FACTOR = 50.0;
+
+    /** Area threshold multiplier for the Bully personality. We start
+     *  applying the BULLY_SCORE_FACTOR when an enemy's Voronoi area
+     *  drops below this multiple of their length. */
+    public static final int    BULLY_AREA_THRESHOLD_MULT = 3;
 
     /** Soft preference for cells closer to the board centre. Edges are
      *  more easily cut off (a wall already blocks one side). Sized small
