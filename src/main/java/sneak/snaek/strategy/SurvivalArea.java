@@ -1,6 +1,7 @@
 package sneak.snaek.strategy;
 
 import sneak.snaek.board.BoardGrid;
+import sneak.snaek.engine.scorer.ScoringConstants;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.Coord;
 
@@ -31,7 +32,7 @@ public final class SurvivalArea {
      *    of who wins the race. Used for **physical** trap detection; a
      *    small Voronoi count expresses enemy pressure but doesn't
      *    necessarily mean we lack room to fit our body. */
-    public record Area(int rawCount, double weighted, int floodCount) {}
+    public record Area(int rawCount, double weighted, int floodCount, int[] enemyRawCounts) {}
 
     private SurvivalArea() {}
 
@@ -45,12 +46,20 @@ public final class SurvivalArea {
         int    raw      = 0;
         int    flood    = 0;
         double weighted = 0.0;
+        int[] enemyRawCounts = new int[enemies.size()];
+
         for (int x = 0; x < myDist.length; x++) {
             for (int y = 0; y < myDist[0].length; y++) {
                 int md = myDist[x][y];
-                if (md >= Bfs.UNREACHABLE) continue;
-                flood++;
                 int ed = enemyDist[x][y];
+
+                if (md >= Bfs.UNREACHABLE) {
+                    if (ed < Bfs.UNREACHABLE) {
+                        enemyRawCounts[enemyOwner[x][y]]++;
+                    }
+                    continue;
+                }
+                flood++;
                 int myArrival = md + 1;
                 boolean own;
                 if (myArrival < ed) {
@@ -66,10 +75,15 @@ public final class SurvivalArea {
                     weighted += grid.isHazard(new Coord(x, y))
                             ? ScoringConstants.HAZARD_AREA_WEIGHT
                             : 1.0;
+                } else {
+                    int oi = enemyOwner[x][y];
+                    if (oi >= 0) {
+                        enemyRawCounts[oi]++;
+                    }
                 }
             }
         }
-        return new Area(raw, weighted, flood);
+        return new Area(raw, weighted, flood, enemyRawCounts);
     }
 }
 

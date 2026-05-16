@@ -25,22 +25,29 @@ ssh -N -o ServerAliveInterval=60 -R 8092:localhost:8081 -p 2222 battlesnake@devi
 **Logs**:
 - Application log → console (via `STDOUT` appender in `src/main/resources/logback.xml`).
 - Battle outcomes → `logs/scores.log` only (dedicated `score` logger, `additivity=false`). One line per game, written from `FierceBattleSnakeApplication.endSignal`. Fields: `result` (WIN/LOSS/DRAW), `gameId`, `mode` (SOLO/DUEL/FFA inferred from initial snake count), `turns`, `us`, `usLength`, `opponents` (captured at `/start`), `survivors` (from final state).
+- Move decisions → `logs/decisions.log` only (dedicated `decision` logger, `additivity=false`). One line per turn, written from `ModularSnakeEngine.move`. Contains a snapshot of all candidate moves, their scores (broken down by scorer), or the filter that pruned them. Useful for mid-game debugging.
 ## Package Structure
 | Package | Role |
 |---|---|
-| `sneak.snaek` | HTTP server (`FierceBattleSnakeApplication`) + decision orchestrator (`SnakeEngine`, containing the nested `PathOptions` safety filter) |
+| `sneak.snaek` | HTTP server (`FierceBattleSnakeApplication`) |
+| `sneak.snaek.engine` | Modular decision orchestrator (`ModularSnakeEngine`, `TurnContext`, `MoveFilter`, `Scorer`) |
 | `sneak.snaek.model` | Immutable Java records — API JSON deserialization (`GameState`, `BattleSnake`, `Board`, `Coord`, `Move`, …) |
 | `sneak.snaek.board` | Board representation (`BoardGrid`) and grid utilities (`CoordUtils`) |
-| `sneak.snaek.strategy` | Move scoring: `MoveScorer` (entry point), `FloodFill` (reachable area) |
+| `sneak.snaek.strategy` | Heuristic components and BFS engines used by the engine |
 ## Move Pipeline (critical dataflow)
 ```
 POST /move → FierceBattleSnakeApplication.move()
-  → SnakeEngine.move(GameState)
-      1. PathOptions.avoidBlocked()            // remove OOB/body collisions
-         PathOptions.avoidHeadToHeadLosses()   // remove squares reachable by equal/longer enemies
-      2. If 1 safe move → return immediately
-      3. For each remaining move: MoveScorer.score(grid, head, move, enemies, food)
-         Pick the move with the highest score.
+  → ModularSnakeEngine.move(GameState)
+      1. TurnContext.from(GameState)         // pre-calculate grid, food, enemy reach
+      2. Apply MoveFilters:
+         - CollisionFilter                  // remove OOB/body collisions
+         - HeadToHeadFilter                 // remove squares reachable by equal/longer enemies
+      3. If 0 moves → return UP
+      4. If 1 move  → return immediately
+      5. For each remaining move:
+         - Create MoveContext               // candidate-specific BFS and area calculation
+         - Apply Scorers (Survival, Food, Tail, Position)
+      6. Pick the move with the highest total score.
 ```
 ## Scoring (`MoveScorer.score`)
 For a candidate `move`, with `next = neighbor(head, move)`:
@@ -66,8 +73,9 @@ where survival = area − TRAP_PENALTY                if area < myLength
 - **`PathOptions.avoidHeadToHeadLosses`** only filters enemies that are *equal or longer* — shorter enemies can be safely contested. If every move is dangerous it keeps the body-safe set (no forced suicide).
 - **Coord system**: `x` = column (left→right), `y` = row (bottom→top). `CoordUtils.neighbor(head, Move)` is the canonical way to compute adjacent cells.
 - **Mode handling removed.** There is no `Mode.DUEL` / `Mode.FFA` split anymore — same logic in all games.
-- No test suite — validate logic changes manually against the BattleSnake simulator.
+- Unit test suite available — run with `mvn test`.
 ## Adding/Tuning Behaviour
-1. New score component: add a term inside `MoveScorer.score()`. Normalise it relative to `floodFill` area (max ≈ board cells = 121) so it doesn't accidentally dominate the food bonus.
-2. To make food-chasing more/less aggressive, tune `FOOD_BONUS` or relax the "strictly closer" condition to `<=` in `MoveScorer`.
-3. Spatial helpers (BFS, flood-fill) live in `sneak.snaek.strategy`; grid/coord types in `sneak.snaek.board`.
+1. **New Filter**: Implement `MoveFilter` and add it to the engine in `ModularSnakeEngine.createDefault()`.
+2. **New Scorer**: Implement `Scorer` and add it to the engine. Each scorer has access to `MoveContext` which contains pre-calculated BFS and reachable area data.
+3. **Tuning**: Adjust constants in `ScoringConstants`.
+4. **Custom Engine**: You can easily swap out the entire engine or create specialized ones for different game modes by composing different filters and scorers.

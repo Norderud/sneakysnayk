@@ -1,3 +1,20 @@
+# Logs
+logs/
+*.log
+
+# Binaries
+*.exe
+*.zip
+*.jar
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

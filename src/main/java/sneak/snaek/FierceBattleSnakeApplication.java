@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
+import sneak.snaek.engine.ModularSnakeEngine;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.GameState;
 import sneak.snaek.model.Move;
@@ -25,7 +26,7 @@ public class FierceBattleSnakeApplication {
     private static final Logger log      = getLogger(FierceBattleSnakeApplication.class);
     /** Dedicated score logger — routed to logs/scores.log via logback.xml. */
     private static final Logger scoreLog = getLogger("score");
-    private static final SnakeEngine snakeEngine = new SnakeEngine();
+    private static final ModularSnakeEngine snakeEngine = ModularSnakeEngine.createDefault();
     private static final Gson gson = new Gson();
 
     // Snake identity – configurable per-instance so two JVMs can run side-by-side
@@ -49,7 +50,7 @@ public class FierceBattleSnakeApplication {
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
-        String color = args.length > 2 ? args[2] : "#FFFFFF";
+        String color = args.length > 2 ? args[2] : "#393939";
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color);
@@ -69,8 +70,8 @@ public class FierceBattleSnakeApplication {
             response.put("apiversion", "1");
             response.put("author", "Sneaksnaek");
             response.put("color", snakeColor);
-            response.put("head", "comet");
-            response.put("tail", "flame");
+            response.put("head", "workout");
+            response.put("tail", "bolt");
             String jsonResponse = gson.toJson(response);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, jsonResponse.getBytes().length);
@@ -89,7 +90,7 @@ public class FierceBattleSnakeApplication {
         games.put(game.game().id(),
                 new GameContext(opponents, game.board().snakes().size()));
         log.info("Game started: {} | us={} vs {} ({} snakes)",
-                game.game().id(), snakeName, opponents, game.board().snakes().size());
+                game.game().id(), game.you().name(), opponents, game.board().snakes().size());
         exchange.sendResponseHeaders(200, -1);
     }
 
@@ -129,7 +130,7 @@ public class FierceBattleSnakeApplication {
                 "result={} gameId={} mode={} turns={} us={} usLength={} opponents={} survivors={}",
                 result, game.game().id(),
                 initialCount <= 2 ? "DUEL" : (initialCount == 1 ? "SOLO" : "FFA"),
-                game.turn(), snakeName, finalLength, opponents, winners);
+                game.turn(), game.you().name(), finalLength, opponents, winners);
 
         log.info("Game {} ended in {} turns | result={} | opponents={}",
                 game.game().id(), game.turn(), result, opponents);

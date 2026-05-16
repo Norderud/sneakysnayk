@@ -14,50 +14,29 @@ already implemented (kept here for context). Tackle from the top.
   tail (via the `myDist` array already computed for the candidate cell)
   instead of Manhattan, with a fallback to the tail's nearest reachable
   neighbour when the tail cell itself is still blocked (post-eat).
+- **Hazard awareness** — `ScoringConstants` and `MoveScorer` now account for
+  hazard drain per body segment and inflate HP urgency when in sauce.
+- **Win-the-H2H bonus against shorter enemies** — Presses smaller snakes
+  by seeking head-to-head positions where we have the length advantage.
+- **Boolean-array flood fill** — `SurvivalArea` now uses the pre-allocated
+  BFS distance grids for area calculation, eliminating the old `FloodFill`
+  class and its `HashSet` allocations.
+- **Pathfinding Suite (A*, DFS)** — Added A* for targeted shortest paths
+  and DFS for exploration/alternative routing, complementing the core BFS.
+- **Score-log driven tuning** — `logs/scores.log` captures game outcomes
+  for data-driven constant adjustment.
+- **Refined H2H danger detection** — `HeadToHeadFilter` now only prunes
+  moves into cells the enemy can *actually* reach (not walls or bodies).
+- **Starvation override** — `MoveScorer` now prioritises contested food
+  when HP is low, even if the H2H is risky, as mutual death is better than
+  starvation.
+- **Refined Food Strategy** — Snake is less 'greedy'. It now avoids risky
+  food (corners, near enemies) unless starving, and prioritises guaranteed
+  food over contested ones.
 
 ---
 
 ## 🟢 Next up
-
-### 1. Hazard awareness  *(15 min, mode-defensive)*
-`BoardGrid.isHazard()` exists but `MoveScorer` ignores it. In Royale,
-hazard cells drain ~15 HP/turn — the bot will happily walk a hazard
-corridor next to a clean route and starve.
-
-- Add `HAZARD_PENALTY ≈ 5` per cell when `next` is a hazard.
-- Optional: inflate BFS edge weight through hazards (turns BFS into a
-  cheap weighted search; only matters if hazard zones are common).
-
-### 2. Refine `avoidHeadToHeadLosses` with enemy legal moves  *(10 min)*
-Currently marks **all four** neighbours of every equal/longer enemy as
-dangerous. Enemies cannot:
-
-- move into a wall;
-- move into their own neck or any snake body.
-
-Filter the danger set with `!grid.isBlocked(neighbor)` before adding.
-Effect: less paranoid in tight quarters; opens up moves we currently
-veto wrongly.
-
-### 3. Boolean-array flood fill  *(15-line rewrite, pure perf)*
-`FloodFill.floodFill` (if still present) uses `HashSet<Coord>`. Rewrite
-with `boolean[w][h]` to match `bfsWithOwners`. ~5× faster, less GC.
-**Note:** after the BFS hoist, `FloodFill` may already be dead code —
-verify references before doing this; possibly just delete the file.
-
-### 4. Win-the-H2H bonus against shorter enemies  *(15 lines)*
-We avoid losing H2Hs but never seek H2Hs we'd win. Add a small bonus
-(~50–200) when `next` is also a neighbour of a strictly shorter enemy's
-head. Real meta in duels — pressures smaller enemies into bad cells.
-No new search — uses data we already have.
-
-### 5. Starvation override  *(4 lines)*
-The lead dampener tunes food *down* when ahead, but there's no symmetric
-*up* signal when starving. If `health < md + 5`, treat food as winnable
-even at `md == ed` regardless of length (mutual death is no worse than
-starvation). Prevents preventable starvation deaths.
-
----
 
 ## 🟡 Cleanups / micro-perf
 
@@ -73,8 +52,34 @@ After `computeEnemyReach`, also build
 so the food H2H check is an array lookup rather than `enemies.get(i).length()`.
 Trivial; useful only when iterating many cells.
 
-### 8. Delete `PathOptions.randomMove()`
-Dead code — never called.
+## 🔵 Personality & Tactical Personas (New)
+
+These behaviors shift the bot from "survival only" to active playstyles.
+
+### 1. The Territorial Bully (Aggressive Cornering)
+*   **Behavior**: Minimize the space available to enemies.
+*   **Implementation**: Add a scorer that penalizes moves based on the size of the Voronoi area remaining for the closest enemy.
+*   **Complexity**: **Medium**. Requires computing `SurvivalArea` from the enemy's perspective for each of our candidate moves.
+
+### 2. The Gatekeeper (Food/Path Blocking)
+*   **Behavior**: Intercept enemies on their way to food.
+*   **Implementation**: Identify high-value food for enemies (via BFS) and prioritize moves that put us on their shortest path if we can reach it first (and are longer).
+*   **Complexity**: **Medium**. Requires "Enemy-to-Food" pathfinding and intercept logic.
+
+### 3. The Parasite (Enemy Tail Shadowing)
+*   **Behavior**: Safely follow large snakes by sticking to their tails.
+*   **Implementation**: Score moves that land adjacent to an enemy's tail (which will be empty next turn).
+*   **Complexity**: **Low**. Simple extension of `TailScorer`.
+
+### 4. The Hoarder (Resource Denial)
+*   **Behavior**: Deny food to others even when healthy.
+*   *   **Implementation**: Increase `foodWeight` specifically for food items that an enemy is also pursuing.
+*   **Complexity**: **Low**. Conditional logic in `FoodScorer`.
+
+### 5. The Duelist (H2H Hunter)
+*   **Behavior**: Actively seek winning head-to-head collisions.
+*   **Implementation**: Higher bonuses for moves that threaten a smaller snake's head.
+*   **Complexity**: **Low**. Already partially in "Next Up".
 
 ---
 

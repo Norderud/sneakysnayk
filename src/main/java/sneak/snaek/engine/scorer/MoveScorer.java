@@ -1,10 +1,12 @@
-package sneak.snaek.strategy;
+package sneak.snaek.engine.scorer;
 
 import sneak.snaek.board.BoardGrid;
 import sneak.snaek.board.CoordUtils;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.Coord;
 import sneak.snaek.model.Move;
+import sneak.snaek.strategy.Bfs;
+import sneak.snaek.strategy.SurvivalArea;
 
 import java.util.List;
 import java.util.Set;
@@ -38,7 +40,7 @@ public final class MoveScorer {
                         double food,
                         double tail,
                         double stretch,
-                        double h2h,
+                        double aggression,
                         double centre,
                         double hazardPenalty,
                         double wallPenalty,
@@ -48,8 +50,8 @@ public final class MoveScorer {
                         int    flood) {
         @Override public String toString() {
             return String.format(
-                "total=%.1f survival=%.1f food=%.1f tail=%.1f stretch=%.1f h2h=%.1f centre=%.1f hazard=-%.1f wall=-%.1f trapped=%s tailReach=%s owned=%d flood=%d",
-                total, survival, food, tail, stretch, h2h, centre, hazardPenalty, wallPenalty, trapped, canReachTail, ownedRaw, flood);
+                "total=%.1f survival=%.1f food=%.1f tail=%.1f stretch=%.1f aggression=%.1f centre=%.1f hazard=-%.1f wall=-%.1f trapped=%s tailReach=%s owned=%d flood=%d",
+                total, survival, food, tail, stretch, aggression, centre, hazardPenalty, wallPenalty, trapped, canReachTail, ownedRaw, flood);
         }
     }
 
@@ -81,36 +83,32 @@ public final class MoveScorer {
         //    into shrinking pockets next to enemies). TRAP_PENALTY stays
         //    un-scaled so the trapped/non-trapped cliff is unchanged.
         //
-        //    Trap detection uses **flood-fill count**, not Voronoi-owned
-        //    count. They measure different things: flood = "is there
-        //    physical room for our body?", Voronoi = "do we win the
-        //    race for this room?". A small Voronoi area expresses enemy
-        //    pressure (and is reflected smoothly in the survival score),
-        //    but doesn't necessarily mean we can't fit. Using rawCount
-        //    here used to false-positive when an enemy's BFS reached
-        //    cells faster via a route around our own body, even though
-        //    the cells were physically reachable for us with room to spare.
+        //    Trap detection uses both physical room (floodCount) and
+        //    contested room (rawCount). We are "trapped" if we lack
+        //    enough physical room for our body, OR if the enemy "owns"
+        //    enough space to squeeze us below our body length.
+        //    This avoids being slowly pressured into dead-ends by enemies.
         SurvivalArea.Area owned = SurvivalArea.compute(myDist, enemyReach, enemies, myLength, grid);
-        boolean trapped = owned.floodCount() < myLength;
+        boolean trapped = owned.floodCount() < myLength || owned.rawCount() < myLength;
         double survival = trapped
                 ? owned.weighted() - ScoringConstants.TRAP_PENALTY
                 : owned.weighted() * ScoringConstants.SURVIVAL_WEIGHT;
 
         double hazardPenalty = hazardDrainPenalty(grid, next, myBody, food);
         double wallPenalty   = wallPenalty(grid, next);
-        double h2hBonus     = h2hBonus(next, enemies, myLength, trapped, owned);
+        double aggressionBonus = aggressionBonus(next, enemies, myLength, trapped, owned);
         double tailBonus    = tailRescueBonus(canReachTail, tailDist, owned, myLength);
         double stretchBonus = stretchBonus(canReachTail, tailDist, owned, myLength);
         double centreBonus  = centreBonus(grid, next);
         double foodBonus    = foodBonus(myDist, enemyReach, enemies, food,
                                        foodWeight, trapped, canReachTail,
-                                       owned, myLength, myHealth);
+                                       owned, myLength, myHealth, grid);
 
         // When trapped, positional heuristics (wall, centre, tail, stretch,
         // hazard) are misleading — none of them predict who survives the
         // longest in a death pocket. Only raw remaining space matters,
         // so we zero them out and rank purely on survival + the (already
-        // suppressed) food/h2h escape signals. Without this, a smaller
+        // suppressed) food/aggression escape signals. Without this, a smaller
         // interior pocket beats a larger border one because the wall
         // penalty (−50) and centre delta easily outweigh tens of cells
         // of survival room. Zeroed in the Score record too so the log
@@ -123,9 +121,9 @@ public final class MoveScorer {
             wallPenalty = 0.0;
         }
 
-        double total = survival + foodBonus + tailBonus + stretchBonus + h2hBonus + centreBonus
+        double total = survival + foodBonus + tailBonus + stretchBonus + aggressionBonus + centreBonus
                      - hazardPenalty - wallPenalty;
-        return new Score(total, survival, foodBonus, tailBonus, stretchBonus, h2hBonus,
+        return new Score(total, survival, foodBonus, tailBonus, stretchBonus, aggressionBonus,
                 centreBonus, hazardPenalty, wallPenalty, trapped, canReachTail,
                 owned.rawCount(), owned.floodCount());
     }
@@ -183,7 +181,7 @@ public final class MoveScorer {
     /** BFS distance from candidate to our tail, falling back to nearest
      *  reachable neighbour of the tail when the tail itself is still
      *  blocked (recent eat → won't vacate this turn). */
-    private static int bfsTailDistance(int[][] myDist, Coord myTail) {
+    public static int bfsTailDistance(int[][] myDist, Coord myTail) {
         int tailDist = Bfs.at(myDist, myTail);
         if (tailDist >= Bfs.UNREACHABLE) {
             for (Coord n : CoordUtils.neighbors(myTail)) {
@@ -194,30 +192,39 @@ public final class MoveScorer {
         return tailDist;
     }
 
-    /** H2H aggression: bonus for moves adjacent to a strictly shorter
-     *  enemy head. Skipped when trapped or with no room to retreat. The
-     *  retreat check uses flood (physical room), not Voronoi-owned —
-     *  enemy contesting cells doesn't strip our ability to back up.
+    /** Aggression: bonus for moves that threaten or trap enemies.
+     *  Combines immediate head-to-head threats and Voronoi trapping.
+     *  Skipped when trapped or with no room to retreat.
      *
      *  Bonus magnitude is divided by max(1, enemies.size()): in 1v1 the
-     *  full H2H_KILL_BONUS fires (high-value contest), but in a crowded
+     *  full bonuses fire (high-value contest), but in a crowded
      *  Battle Royale it scales down so we don't commit to a fight that
-     *  a third snake can capitalise on. As the field thins out
-     *  naturally, the bonus restores to full value. */
-    private static double h2hBonus(Coord next,
-                                   List<BattleSnake> enemies,
-                                   int myLength,
-                                   boolean trapped,
-                                   SurvivalArea.Area owned) {
+     *  a third snake can capitalise on. */
+    public static double aggressionBonus(Coord next,
+                                          List<BattleSnake> enemies,
+                                          int myLength,
+                                          boolean trapped,
+                                          SurvivalArea.Area owned) {
         if (trapped || owned.floodCount() < myLength) return 0.0;
-        for (BattleSnake enemy : enemies) {
-            if (enemy.length() >= myLength) continue;
-            if (CoordUtils.manhattanDistance(next, enemy.head()) == 1) {
-                return ScoringConstants.H2H_KILL_BONUS
-                        / Math.max(1, enemies.size());
+
+        double bonus = 0.0;
+        int[] enemyAreas = owned.enemyRawCounts();
+
+        for (int i = 0; i < enemies.size(); i++) {
+            BattleSnake enemy = enemies.get(i);
+
+            // 1. Head-to-head threat: we are adjacent to a shorter enemy's head.
+            if (enemy.length() < myLength && CoordUtils.manhattanDistance(next, enemy.head()) == 1) {
+                bonus += ScoringConstants.H2H_KILL_BONUS;
+            }
+
+            // 2. Trapping: the enemy's Voronoi-owned area is less than their body length.
+            if (enemyAreas[i] < enemy.length()) {
+                bonus += ScoringConstants.OPPONENT_TRAP_BONUS;
             }
         }
-        return 0.0;
+
+        return bonus / Math.max(1, enemies.size());
     }
 
     /** Tail-chase rescue: only meaningful when **physical** room is
@@ -225,7 +232,7 @@ public final class MoveScorer {
      *  pressure shrinks Voronoi but doesn't shrink our corridor; we
      *  shouldn't switch into rescue mode just because an enemy reaches
      *  some distant cells faster. */
-    private static double tailRescueBonus(boolean canReachTail, int tailDist,
+    public static double tailRescueBonus(boolean canReachTail, int tailDist,
                                           SurvivalArea.Area owned, int myLength) {
         boolean tight = owned.floodCount() < ScoringConstants.TAIL_BONUS_AREA_MULT * myLength;
         return (canReachTail && tight)
@@ -246,7 +253,7 @@ public final class MoveScorer {
      *      them is just walking into their Voronoi pocket; the previous
      *      gate missed this and let stretch=150 outweigh a clear
      *      survival-area drop. */
-    private static double stretchBonus(boolean canReachTail, int tailDist,
+    public static double stretchBonus(boolean canReachTail, int tailDist,
                                        SurvivalArea.Area owned, int myLength) {
         boolean floodTight = owned.floodCount() < ScoringConstants.TAIL_BONUS_AREA_MULT * myLength;
         if (!canReachTail || floodTight) return 0.0;
@@ -256,7 +263,7 @@ public final class MoveScorer {
     }
 
     /** Centre preference — Chebyshev distance to the board centre. */
-    private static double centreBonus(BoardGrid grid, Coord next) {
+    public static double centreBonus(BoardGrid grid, Coord next) {
         int cx = (grid.getWidth()  - 1) / 2;
         int cy = (grid.getHeight() - 1) / 2;
         int centreDist = Math.max(Math.abs(next.x() - cx), Math.abs(next.y() - cy));
@@ -269,7 +276,7 @@ public final class MoveScorer {
      *  double (two walls). The soft {@link #centreBonus} gradient is
      *  too weak (~16 at edge vs 100 at centre) to break this on its
      *  own once stretch / survival plateau along an edge corridor. */
-    private static double wallPenalty(BoardGrid grid, Coord next) {
+    public static double wallPenalty(BoardGrid grid, Coord next) {
         int walls = 0;
         if (next.x() == 0)                     walls++;
         if (next.x() == grid.getWidth()  - 1)  walls++;
@@ -291,7 +298,7 @@ public final class MoveScorer {
      *  with a hazard tail. Across turns it gives a faithful absolute
      *  cost — long body in sauce now scores proportionally to the
      *  HP we're actually losing. */
-    private static double hazardDrainPenalty(BoardGrid grid, Coord next,
+    public static double hazardDrainPenalty(BoardGrid grid, Coord next,
                                              List<Coord> myBody, Set<Coord> food) {
         boolean willEat = food.contains(next);
         int hazardSegs = grid.isHazard(next) ? 1 : 0;
@@ -306,7 +313,7 @@ public final class MoveScorer {
      *  Suppressed when trapped, or when healthy and locked into a tight
      *  tail-loop (eating would grow us / disable tail-vacate and break
      *  the loop we're surviving on). */
-    private static double foodBonus(int[][] myDist,
+    public static double foodBonus(int[][] myDist,
                                     Bfs.EnemyReach enemyReach,
                                     List<BattleSnake> enemies,
                                     Set<Coord> food,
@@ -315,7 +322,8 @@ public final class MoveScorer {
                                     boolean canReachTail,
                                     SurvivalArea.Area owned,
                                     int myLength,
-                                    int myHealth) {
+                                    int myHealth,
+                                    BoardGrid grid) {
         if (food.isEmpty()) return 0.0;
         // Tight-loop check uses flood (physical room), not Voronoi.
         boolean tightLoop = canReachTail && owned.floodCount() < myLength * 1.5;
@@ -324,6 +332,7 @@ public final class MoveScorer {
         int[][] enemyDist  = enemyReach.dist();
         int[][] enemyOwner = enemyReach.owner();
         double best = 0.0;
+
         for (Coord f : food) {
             int md = Bfs.at(myDist, f);
             if (md >= Bfs.UNREACHABLE) continue;
@@ -335,13 +344,60 @@ public final class MoveScorer {
                 win = true;
             } else if (myArrival == ed) {
                 int ownerIdx = enemyOwner[f.x()][f.y()];
-                win = ownerIdx >= 0 && myLength > enemies.get(ownerIdx).length();
+                // Starvation override: if we are about to starve, a mutual death head-to-head
+                // is better than certain death.
+                boolean starving = myHealth < md + 5;
+                win = (ownerIdx >= 0 && myLength > enemies.get(ownerIdx).length()) || starving;
             } else {
                 win = false;
             }
-            if (win) best = Math.max(best, foodWeight / (1.0 + md));
+
+            if (win) {
+                double score = foodWeight / (1.0 + md);
+
+                // Apply rules for risky food and enemy proximity
+                boolean starving = myHealth < md + 10;
+                if (!starving) {
+                    // Rule 1: Risky food (corners or next to enemy)
+                    boolean isCorner = isCorner(grid, f);
+                    boolean nextToEnemy = isNextToEnemy(f, enemies);
+
+                    if (isCorner || nextToEnemy) {
+                        score -= ScoringConstants.RISKY_FOOD_PENALTY;
+                    }
+
+                    // Rule 2: Food close to enemy vs "safe" food
+                    // If ed is small, the food is close to an enemy.
+                    // If we have other "safer" food options, we might want to prioritize them.
+                    // For now, let's penalize food that is "contested" (ed <= md + 2)
+                    // compared to "guaranteed" food.
+                    if (ed <= md + 2) {
+                        score *= 0.5; // Halve the score for contested food
+                    }
+                }
+
+                best = Math.max(best, score);
+            }
         }
         return best;
+    }
+
+    private static boolean isCorner(BoardGrid grid, Coord c) {
+        int walls = 0;
+        if (c.x() == 0) walls++;
+        if (c.x() == grid.getWidth() - 1) walls++;
+        if (c.y() == 0) walls++;
+        if (c.y() == grid.getHeight() - 1) walls++;
+        return walls >= 2;
+    }
+
+    private static boolean isNextToEnemy(Coord f, List<BattleSnake> enemies) {
+        for (BattleSnake enemy : enemies) {
+            if (CoordUtils.manhattanDistance(f, enemy.head()) <= 1) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

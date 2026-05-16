@@ -1,4 +1,4 @@
-package sneak.snaek.strategy;
+package sneak.snaek.engine.scorer;
 
 /**
  * Central tuning knobs for {@link MoveScorer}.
@@ -10,7 +10,7 @@ package sneak.snaek.strategy;
  *                        ≈ CENTER_BONUS (100) > HAZARD_PENALTY (25)
  * — so survival overrides aggression overrides positional tiebreakers.
  */
-final class ScoringConstants {
+public final class ScoringConstants {
 
     /** Maximum food-race weight. Sized to be the dominant *positional*
      *  signal among the bonuses (TAIL_BONUS=100, H2H_KILL_BONUS=200,
@@ -21,7 +21,7 @@ final class ScoringConstants {
      *  food cell is in tight space. The lead dampener (see
      *  {@link MoveScorer#computeFoodWeight}) scales this down further
      *  as we pull ahead.  */
-    static final double FOOD_BONUS    = 750.0;
+    public static final double FOOD_BONUS    = 750.0;
 
     /** Heavy penalty applied when the survival pocket (raw owned cells)
      *  is smaller than our body length — i.e. we'd self-collide before
@@ -29,7 +29,7 @@ final class ScoringConstants {
      *  beat any non-trapped alternative (max non-trapped survival ≈
      *  2·length ≈ 200) yet stay finite so the bot can still pick a
      *  trapped cell when *every* option is trapped (least-bad mode). */
-    static final double TRAP_PENALTY  = 2_000.0;
+    public static final double TRAP_PENALTY  = 2_000.0;
 
     /** Multiplier applied to the (non-trapped) Voronoi-weighted owned-area
      *  count. Survival is the only term that actually predicts
@@ -44,7 +44,7 @@ final class ScoringConstants {
      *  trapped vs non-trapped contrast stays at the original 1 000-pt
      *  cliff, so the bot doesn't gain a perverse incentive to court
      *  near-trap states for marginally larger owned counts. */
-    static final double SURVIVAL_WEIGHT = 3.0;
+    public static final double SURVIVAL_WEIGHT = 3.0;
 
     /** Max bonus for moving toward our own tail. Acts as a corridor-
      *  rescue tiebreaker — preventing the long-snake "wander into a
@@ -52,13 +52,13 @@ final class ScoringConstants {
      *  reachable pocket is genuinely tight (owned < TAIL_BONUS_AREA_MULT
      *  · myLength); in open space it would otherwise pull the snake
      *  into the smallest possible loop and self-coil to death. */
-    static final double TAIL_BONUS    = 100.0;
+    public static final double TAIL_BONUS    = 100.0;
 
     /** Tail bonus applies only when owned-area is below this multiple of
      *  body length. Above the threshold there is plenty of room to
      *  survive without hugging our own body, and tail-adjacency pull
      *  becomes actively harmful (causes early-game self-coiling). */
-    static final int    TAIL_BONUS_AREA_MULT = 2;
+    public static final int    TAIL_BONUS_AREA_MULT = 2;
 
     /** Max bonus for keeping a *long* BFS path between head and tail in
      *  open space — i.e. "stretch out / zig-zag" instead of coiling. The
@@ -70,14 +70,14 @@ final class ScoringConstants {
      *  (500) so it never overrides aggression or food. Caps at the
      *  bonus value once {@code tailDist >= myLength} (body fully
      *  extended — no further benefit to walking away). */
-    static final double STRETCH_BONUS = 100;
+    public static final double STRETCH_BONUS = 100;
 
     /** Length lead (over the longest live enemy) at which we start
      *  dampening the food bonus. At lead ≤ THRESHOLD the chase is at
      *  full FOOD_BONUS; past it the weight decays as 1/(1+excess) —
      *  see {@link MoveScorer#computeFoodWeight}. Larger ⇒ stay
      *  aggressive longer. */
-    static final int    LEAD_THRESHOLD = 4;
+    public static final int    LEAD_THRESHOLD = 4;
 
     /** HP threshold below which food urgency starts ramping up. At
      *  exactly this value the food multiplier is 1× (unchanged); each
@@ -88,7 +88,7 @@ final class ScoringConstants {
      *  length. Sized at 60 (rather than 50) so the urgency ramp
      *  *starts* before the classic "60-HP danger zone" rather than
      *  reacting to it. */
-    static final int    HEALTH_URGENCY_THRESHOLD = 60;
+    public static final int    HEALTH_URGENCY_THRESHOLD = 60;
 
     /** Effective HP drop applied to the urgency calculation when ANY
      *  segment of our body is currently inside a hazard cell (this
@@ -98,7 +98,7 @@ final class ScoringConstants {
      *  if we were already that much weaker — pre-empting the cliff
      *  rather than reacting to it. Roughly 1–2 turns of hazard drain
      *  (≈15 HP/turn in default Royale). */
-    static final int    HAZARD_HP_BUFFER = 20;
+    public static final int    HAZARD_HP_BUFFER = 20;
 
     /** Score cost per body segment that will be inside a hazard cell
      *  after our move (head + every non-vacating body cell). Hazard
@@ -115,12 +115,12 @@ final class ScoringConstants {
      *  trapped/non-trapped cliff remains the dominant signal. The
      *  vacating tail (if {@code next} isn't food) is correctly excluded
      *  — we *gain* by leaving a hazard cell behind. */
-    static final double HAZARD_PENALTY = 250.0;
+    public static final double HAZARD_PENALTY = 250.0;
 
     /** Weight of hazard cells when counting the survival/flood-fill area.
      *  Hazards are passable but drain HP, so a pocket made mostly of
      *  hazard cells is effectively smaller than its raw cell count. */
-    static final double HAZARD_AREA_WEIGHT = 0.25;
+    public static final double HAZARD_AREA_WEIGHT = 0.25;
 
     /** Bonus for moves that land adjacent to a strictly shorter enemy's head.
      *  We'd win that head-to-head if they step into us — and even if they
@@ -135,14 +135,22 @@ final class ScoringConstants {
      *  on whatever cell-cluster you've both committed to. Late-game
      *  attrition will naturally restore the full value as the field
      *  thins out. */
-    static final double H2H_KILL_BONUS = 200.0;
+    public static final double H2H_KILL_BONUS = 200.0;
+
+    /** Bonus for trapping an opponent (reducing their Voronoi-owned area
+     *  below their body length). Being the one who "seals the deal" on
+     *  an enemy's survival is high value. Sized significantly (400)
+     *  to outweigh a food chase or a comfortable length lead, but still
+     *  below TRAP_PENALTY (2000) so we don't suicide to kill.
+     *  Like H2H_KILL_BONUS, it scales down in multi-snake games. */
+    public static final double OPPONENT_TRAP_BONUS = 600.0;
 
     /** Soft preference for cells closer to the board centre. Edges are
      *  more easily cut off (a wall already blocks one side). Sized small
      *  so it never overrides survival, food, h2h pressure, or tail-chase
      *  in late-game tight loops — purely a mid-game positional tiebreaker
      *  when other terms are flat. */
-    static final double CENTER_BONUS = 100.0;
+    public static final double CENTER_BONUS = 100.0;
 
     /** Hard penalty per wall the candidate cell physically touches.
      *  Edge cell ⇒ −50, corner cell ⇒ −100. Complements the soft
@@ -154,7 +162,14 @@ final class ScoringConstants {
      *  so we can still chase kills/food/space onto a wall when needed,
      *  but pays for itself over a multi-turn border loop. Far below
      *  TRAP_PENALTY (1000) — never forces a self-trap. */
-    static final double WALL_PENALTY = 50.0;
+    public static final double WALL_PENALTY = 50.0;
+
+    /** Penalty for food items in risky positions (corners or next to enemies).
+     *  A corner food item is one that touches two walls.
+     *  An "enemy-adjacent" food item is one that is a neighbor of an enemy head.
+     *  Sized significantly to discourage "greedy" moves into bad spots unless
+     *  starving. */
+    public static final double RISKY_FOOD_PENALTY = 300.0;
 
     private ScoringConstants() {}
 }

@@ -102,6 +102,8 @@ mvn package
 java -jar target/super-sneyk-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
+See [**TESTING.md**](TESTING.md) for a detailed guide on local testing, including snapshot tests and local simulations.
+
 The bot listens on **port 8080** by default. Optional CLI args let you run multiple instances side-by-side:
 
 ```bash
@@ -133,7 +135,7 @@ Two log streams (configured in [`logback.xml`](src/main/resources/logback.xml)):
 |---|---|
 | `sneak.snaek.FierceBattleSnakeApplication` | HTTP server + request routing |
 | `sneak.snaek.SnakeEngine` | Decision orchestrator (safety filter + scoring loop) |
-| `sneak.snaek.strategy.MoveScorer` | All scoring logic & tunable constants live here |
+| `sneak.snaek.engine.scorer.MoveScorer` | All scoring logic & tunable constants live here |
 | `sneak.snaek.board.BoardGrid` | Board representation (blocked cells, hazards, food) |
 | `sneak.snaek.board.CoordUtils` | Coord arithmetic, neighbours, Manhattan distance |
 | `sneak.snaek.model.*` | Immutable Java records for BattleSnake JSON API |

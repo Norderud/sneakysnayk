@@ -30,6 +30,18 @@
             <artifactId>logback-classic</artifactId>
             <version>1.5.25</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.12.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>5.12.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -39,7 +51,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.14.1</version>
                 <configuration>
-                    <release>${java.version}</release>
+                    <release>21</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -57,7 +69,7 @@
                             <archive>
                                 <manifest>
                                     <mainClass>
-                                        com.mastercard.e117387.snaeksneak.FierceBattleSnakeApplication
+                                        sneak.snaek.FierceBattleSnakeApplication
                                     </mainClass>
                                 </manifest>
                             </archive>
@@ -81,6 +93,14 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>sneak.snaek.FierceBattleSnakeApplication</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
