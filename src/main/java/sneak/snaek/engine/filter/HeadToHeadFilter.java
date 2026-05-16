@@ -19,9 +19,11 @@ public class HeadToHeadFilter implements MoveFilter {
         int myLength = ctx.state().you().length();
         Coord myHead = ctx.state().you().head();
         
+        int[] enemyLengths = ctx.enemyReach().enemyLengths();
         Set<Coord> danger = new HashSet<>();
-        for (BattleSnake enemy : ctx.enemies()) {
-            if (enemy.length() >= myLength) {
+        for (int i = 0; i < ctx.enemies().size(); i++) {
+            if (enemyLengths[i] >= myLength) {
+                BattleSnake enemy = ctx.enemies().get(i);
                 for (Move m : Move.values()) {
                     Coord neighbor = CoordUtils.neighbor(enemy.head(), m);
                     if (ctx.grid().inBounds(neighbor) && !ctx.grid().isBlocked(neighbor)) {

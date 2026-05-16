@@ -30,7 +30,7 @@ public final class Bfs {
     public static final int UNREACHABLE = Integer.MAX_VALUE;
 
     /** Per-cell BFS result from all enemy heads at once. */
-    public record EnemyReach(int[][] dist, int[][] owner) {}
+    public record EnemyReach(int[][] dist, int[][] owner, int[] enemyLengths) {}
 
     private Bfs() {}
 
@@ -50,12 +50,19 @@ public final class Bfs {
         }
         while (!queue.isEmpty()) {
             Coord c = queue.poll();
-            int d = dist[c.x()][c.y()];
-            for (Coord n : CoordUtils.neighbors(c)) {
-                if (!grid.inBounds(n) || grid.isBlocked(n)) continue;
-                if (dist[n.x()][n.y()] > d + 1) {
-                    dist[n.x()][n.y()] = d + 1;
-                    queue.add(n);
+            int cx = c.x(), cy = c.y();
+            int d = dist[cx][cy];
+
+            // Inline neighbors
+            for (int i = 0; i < 4; i++) {
+                int nx = cx + (i == 0 ? 1 : i == 1 ? -1 : 0);
+                int ny = cy + (i == 2 ? 1 : i == 3 ? -1 : 0);
+
+                if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                if (grid.isBlocked(nx, ny)) continue;
+                if (dist[nx][ny] > d + 1) {
+                    dist[nx][ny] = d + 1;
+                    queue.add(new Coord(nx, ny));
                 }
             }
         }
@@ -71,9 +78,12 @@ public final class Bfs {
         for (int[] row : dist)  Arrays.fill(row, UNREACHABLE);
         for (int[] row : owner) Arrays.fill(row, -1);
 
+        int[] enemyLengths = new int[enemies.size()];
         Deque<int[]> queue = new ArrayDeque<>();
         for (int i = 0; i < enemies.size(); i++) {
-            Coord src = enemies.get(i).head();
+            BattleSnake enemy = enemies.get(i);
+            enemyLengths[i] = enemy.length();
+            Coord src = enemy.head();
             if (!grid.inBounds(src)) continue;
             if (dist[src.x()][src.y()] == UNREACHABLE) {
                 dist[src.x()][src.y()]  = 0;
@@ -85,16 +95,22 @@ public final class Bfs {
             int[] cur = queue.poll();
             int cx = cur[0], cy = cur[1], oi = cur[2];
             int d  = dist[cx][cy];
-            for (Coord n : CoordUtils.neighbors(new Coord(cx, cy))) {
-                if (!grid.inBounds(n) || grid.isBlocked(n)) continue;
-                if (dist[n.x()][n.y()] > d + 1) {
-                    dist[n.x()][n.y()]  = d + 1;
-                    owner[n.x()][n.y()] = oi;
-                    queue.add(new int[]{n.x(), n.y(), oi});
+
+            // Inline neighbors
+            for (int i = 0; i < 4; i++) {
+                int nx = cx + (i == 0 ? 1 : i == 1 ? -1 : 0);
+                int ny = cy + (i == 2 ? 1 : i == 3 ? -1 : 0);
+
+                if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                if (grid.isBlocked(nx, ny)) continue;
+                if (dist[nx][ny] > d + 1) {
+                    dist[nx][ny]  = d + 1;
+                    owner[nx][ny] = oi;
+                    queue.add(new int[]{nx, ny, oi});
                 }
             }
         }
-        return new EnemyReach(dist, owner);
+        return new EnemyReach(dist, owner, enemyLengths);
     }
 
     /** Bounds-checked lookup that returns {@link #UNREACHABLE} for OOB. */

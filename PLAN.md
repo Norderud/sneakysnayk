@@ -7,6 +7,12 @@ already implemented (kept here for context). Tackle from the top.
 
 ## ✅ Done
 
+- **Eliminate `Coord` allocation in BFS inner loop** — Inlined `(±1, 0), (0, ±1)`
+  deltas and added integer-based `isBlocked`/`isHazard` checks in `BoardGrid`.
+  Significant reduction in short-lived objects during per-turn BFS.
+- **Cache enemy lengths into an `int[]`** — `Bfs.computeEnemyReach` now
+  builds a primitive array of lengths, used by `SurvivalArea`, `MoveScorer`,
+  and `HeadToHeadFilter` to avoid repeated method calls and list overhead.
 - **Hoist enemy BFS out of the per-move loop** — `MoveScorer.computeEnemyReach`
   is called once per turn in `SnakeEngine.move()` and reused for every
   candidate. Cuts per-turn BFS by ~33%.
@@ -40,18 +46,6 @@ already implemented (kept here for context). Tackle from the top.
 
 ## 🟡 Cleanups / micro-perf
 
-### 6. Eliminate `Coord` allocation in BFS inner loop
-`CoordUtils.neighbors(c)` returns 4 fresh `Coord` records per visited
-cell — thousands of tiny allocations per turn. Inline `(±1, 0), (0, ±1)`
-deltas as `int x, y`. Modest GC reduction; JIT eats most of the cost
-already so low priority.
-
-### 7. Cache enemy lengths into an `int[]`
-After `computeEnemyReach`, also build
-`int[] enemyLengths = enemies.stream().mapToInt(BattleSnake::length).toArray()`
-so the food H2H check is an array lookup rather than `enemies.get(i).length()`.
-Trivial; useful only when iterating many cells.
-
 ## 🔵 Personality & Tactical Personas (New)
 
 These behaviors shift the bot from "survival only" to active playstyles.
@@ -64,7 +58,7 @@ These behaviors shift the bot from "survival only" to active playstyles.
 ### 2. The Gatekeeper (Food/Path Blocking)
 *   **Behavior**: Intercept enemies on their way to food.
 *   **Implementation**: Identify high-value food for enemies (via BFS) and prioritize moves that put us on their shortest path if we can reach it first (and are longer).
-*   **Complexity**: **Medium**. Requires "Enemy-to-Food" pathfinding and intercept logic.
+*   **Complexity**: **Medium**. Done via BFS backtracking and `TurnContext` pre-calculation.
 
 ### 3. The Parasite (Enemy Tail Shadowing)
 *   **Behavior**: Safely follow large snakes by sticking to their tails.
@@ -100,6 +94,11 @@ One-ply will *always* mispredict trap-by-many-turns scenarios. A capped
 ---
 
 ## 🧪 Cross-cutting
+
+### Competitive Testing (A/B Testing)
+Run your latest build against a known stable version on your own machine.
+- Use `scripts/run-local-cli.ps1` with separate `-UrlA` and `-UrlB` arguments.
+- Distinguish outcomes in `logs/scores.log` by passing unique names to each instance.
 
 ### Score-log driven tuning
 The `score` logger now writes one line per game to `logs/scores.log` with

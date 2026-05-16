@@ -48,6 +48,7 @@ public final class SurvivalArea {
         double weighted = 0.0;
         int[] enemyRawCounts = new int[enemies.size()];
 
+        int[] enemyLengths = enemyReach.enemyLengths();
         for (int x = 0; x < myDist.length; x++) {
             for (int y = 0; y < myDist[0].length; y++) {
                 int md = myDist[x][y];
@@ -66,13 +67,13 @@ public final class SurvivalArea {
                     own = true;
                 } else if (myArrival == ed) {
                     int oi = enemyOwner[x][y];
-                    own = oi >= 0 && myLength > enemies.get(oi).length();
+                    own = oi >= 0 && myLength > enemyLengths[oi];
                 } else {
                     own = false;
                 }
                 if (own) {
                     raw++;
-                    weighted += grid.isHazard(new Coord(x, y))
+                    weighted += grid.isHazard(x, y)
                             ? ScoringConstants.HAZARD_AREA_WEIGHT
                             : 1.0;
                 } else {

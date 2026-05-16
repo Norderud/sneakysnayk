@@ -347,7 +347,7 @@ public final class MoveScorer {
                 // Starvation override: if we are about to starve, a mutual death head-to-head
                 // is better than certain death.
                 boolean starving = myHealth < md + 5;
-                win = (ownerIdx >= 0 && myLength > enemies.get(ownerIdx).length()) || starving;
+                win = (ownerIdx >= 0 && myLength > enemyReach.enemyLengths()[ownerIdx]) || starving;
             } else {
                 win = false;
             }

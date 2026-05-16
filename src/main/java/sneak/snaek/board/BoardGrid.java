@@ -84,9 +84,17 @@ public final class BoardGrid {
         return !inBounds(c) || blocked[c.x()][c.y()];
     }
 
+    public boolean isBlocked(int x, int y) {
+        return x < 0 || x >= width || y < 0 || y >= height || blocked[x][y];
+    }
+
     
     public boolean isHazard(Coord c) {
         return inBounds(c) && hazard[c.x()][c.y()];
+    }
+
+    public boolean isHazard(int x, int y) {
+        return x >= 0 && x < width && y >= 0 && y < height && hazard[x][y];
     }
 
     
