@@ -7,6 +7,7 @@ already implemented (kept here for context). Tackle from the top.
 
 ## ✅ Done
 
+- **The Parasite personality** — Added shadowing behavior where the bot follows enemy tails.
 - **Eliminate `Coord` allocation in BFS inner loop** — Inlined `(±1, 0), (0, ±1)`
   deltas and added integer-based `isBlocked`/`isHazard` checks in `BoardGrid`.
   Significant reduction in short-lived objects during per-turn BFS.
@@ -61,20 +62,21 @@ These behaviors shift the bot from "survival only" to active playstyles.
 *   **Implementation**: Identify high-value food for enemies (via BFS) and prioritize moves that put us on their shortest path if we can reach it first (and are longer).
 *   **Complexity**: **Medium**. Done via BFS backtracking and `TurnContext` pre-calculation.
 
-### 3. The Parasite (Enemy Tail Shadowing)
+### 3. ✅ The Parasite (Enemy Tail Shadowing)
 *   **Behavior**: Safely follow large snakes by sticking to their tails.
 *   **Implementation**: Score moves that land adjacent to an enemy's tail (which will be empty next turn).
-*   **Complexity**: **Low**. Simple extension of `TailScorer`.
+*   **Complexity**: **Low**. Done via `ParasiteScorer`.
+*   **Verification**: Added to `run-local-cli.ps1` and `benchmark.ps1`.
 
 ### 4. The Hoarder (Resource Denial)
 *   **Behavior**: Deny food to others even when healthy.
 *   *   **Implementation**: Increase `foodWeight` specifically for food items that an enemy is also pursuing.
 *   **Complexity**: **Low**. Conditional logic in `FoodScorer`.
 
-### 5. The Duelist (H2H Hunter)
+### 5. ✅ The Duelist (H2H Hunter)
 *   **Behavior**: Actively seek winning head-to-head collisions.
 *   **Implementation**: Higher bonuses for moves that threaten a smaller snake's head.
-*   **Complexity**: **Low**. Already partially in "Next Up".
+*   **Complexity**: **Low**. Done via `DuelistScorer` and `HeadToHeadFilter` refinements.
 
 ---
 
@@ -98,7 +100,8 @@ One-ply will *always* mispredict trap-by-many-turns scenarios. A capped
 
 ### Competitive Testing (A/B Testing)
 Run your latest build against a known stable version on your own machine.
-- Use `scripts/run-local-cli.ps1` with separate `-UrlA` and `-UrlB` arguments.
+- Use `scripts/benchmark.ps1` to run automated games between different versions/personalities.
+- Support for dynamic snake selection: `benchmark.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
 - Distinguish outcomes in `logs/scores.log` by passing unique names to each instance.
 
 ### Score-log driven tuning

@@ -3,7 +3,6 @@ package sneak.snaek.strategy;
 import sneak.snaek.board.BoardGrid;
 import sneak.snaek.engine.scorer.ScoringConstants;
 import sneak.snaek.model.BattleSnake;
-import sneak.snaek.model.Coord;
 
 import java.util.List;
 
@@ -41,6 +40,15 @@ public final class SurvivalArea {
                                List<BattleSnake> enemies,
                                int myLength,
                                BoardGrid grid) {
+        return compute(myDist, enemyReach, enemies, myLength, grid, 1);
+    }
+
+    public static Area compute(int[][] myDist,
+                               Bfs.EnemyReach enemyReach,
+                               List<BattleSnake> enemies,
+                               int myLength,
+                               BoardGrid grid,
+                               int myArrivalOffset) {
         int[][] enemyDist  = enemyReach.dist();
         int[][] enemyOwner = enemyReach.owner();
         int    raw      = 0;
@@ -61,7 +69,7 @@ public final class SurvivalArea {
                     continue;
                 }
                 flood++;
-                int myArrival = md + 1;
+                int myArrival = md + myArrivalOffset;
                 boolean own;
                 if (myArrival < ed) {
                     own = true;

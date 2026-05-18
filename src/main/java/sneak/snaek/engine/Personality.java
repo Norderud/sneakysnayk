@@ -3,7 +3,9 @@ package sneak.snaek.engine;
 public enum Personality {
     BULLY,
     MIDAS,
-    TURTLE;
+    TURTLE,
+    PARASITE,
+    DUELIST;
 
     public static Personality fromString(String s) {
         if (s == null) return BULLY;

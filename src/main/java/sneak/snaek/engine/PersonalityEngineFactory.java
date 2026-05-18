@@ -29,6 +29,24 @@ public class PersonalityEngineFactory {
                       .addScorer(new TailScorer(1.5)) // High tail rescue priority
                       .addScorer(new PositionScorer());
                 break;
+            case PARASITE:
+                // Shadow larger snakes, less aggressive on H2H
+                engine.addScorer(new SurvivalScorer())
+                      .addScorer(new FoodScorer())
+                      .addScorer(new AggressionScorer(0.5)) // Half aggression
+                      .addScorer(new ParasiteScorer())
+                      .addScorer(new TailScorer())
+                      .addScorer(new PositionScorer());
+                break;
+            case DUELIST:
+                // Actively seek head-to-head combat, combine with high aggression
+                engine.addScorer(new SurvivalScorer())
+                      .addScorer(new FoodScorer(0.8)) // Less focus on food
+                      .addScorer(new AggressionScorer(1.5)) // Higher focus on trapping/H2H kills
+                      .addScorer(new DuelistScorer(1.0))
+                      .addScorer(new TailScorer())
+                      .addScorer(new PositionScorer());
+                break;
             case BULLY:
             default:
                 // The "Territorial Bully" - existing behavior

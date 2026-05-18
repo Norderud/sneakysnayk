@@ -1,6 +1,7 @@
 package sneak.snaek.engine.filter;
 
 import sneak.snaek.board.CoordUtils;
+import sneak.snaek.engine.Personality;
 import sneak.snaek.engine.TurnContext;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.Coord;
@@ -20,9 +21,16 @@ public class HeadToHeadFilter implements MoveFilter {
         Coord myHead = ctx.state().you().head();
         
         int[] enemyLengths = ctx.enemyReach().enemyLengths();
+        // Normally prune if enemy is equal or longer.
+        // Duelist only prunes if enemy is strictly longer (allows equal H2H).
+        boolean isDuelist = ctx.personality() == Personality.DUELIST;
+        
         Set<Coord> danger = new HashSet<>();
         for (int i = 0; i < ctx.enemies().size(); i++) {
-            if (enemyLengths[i] >= myLength) {
+            int enemyLen = enemyLengths[i];
+            boolean dangerous = isDuelist ? (enemyLen > myLength) : (enemyLen >= myLength);
+            
+            if (dangerous) {
                 BattleSnake enemy = ctx.enemies().get(i);
                 for (Move m : Move.values()) {
                     Coord neighbor = CoordUtils.neighbor(enemy.head(), m);

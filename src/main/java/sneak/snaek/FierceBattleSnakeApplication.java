@@ -52,7 +52,7 @@ public class FierceBattleSnakeApplication {
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
-        String color = args.length > 2 ? args[2] : "#FFFB00";
+        String color = args.length > 2 ? args[2] : "#fafafa";
         Personality personality = args.length > 3 ? Personality.fromString(args[3]) : Personality.BULLY;
 
         snakeEngine = PersonalityEngineFactory.create(personality);

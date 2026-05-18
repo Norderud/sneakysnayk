@@ -183,6 +183,17 @@ public final class ScoringConstants {
      *  starving. */
     public static final double RISKY_FOOD_PENALTY = 300.0;
 
+    /** Bonus for moves that land adjacent to an enemy's tail.
+     *  The parasite personality uses this to shadow larger snakes.
+     *  Sized similar to TAIL_BONUS (100) - a strong positional tiebreaker. */
+    public static final double PARASITE_BONUS = 150.0;
+
+    /** Bonus for moves that land adjacent to ANY enemy's head, regardless of length.
+     *  The Duelist uses this to seek combat and force mistakes.
+     *  Note: HeadToHeadFilter still prunes moves that would lead to a certain loss,
+     *  so this only encourages "fair" or "favorable" H2H opportunities. */
+    public static final double DUELIST_BONUS = 300.0;
+
     private ScoringConstants() {}
 }
 

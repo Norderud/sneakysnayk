@@ -53,7 +53,7 @@ public class ModularSnakeEngine {
     }
     
     public Move move(GameState state) {
-        TurnContext ctx = TurnContext.from(state);
+        TurnContext ctx = TurnContext.from(state, personality);
         
         Set<Move> moves = new HashSet<>(Arrays.asList(Move.values()));
         Map<Move, String> filtersApplied = new HashMap<>();
@@ -106,25 +106,25 @@ public class ModularSnakeEngine {
         }
         
         // Log decision snapshot
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("gameId=%s name=%s personality=%s turn=%d health=%d head=%s ", 
+        StringBuilder dsb = new StringBuilder();
+        dsb.append(String.format("gameId=%s name=%s personality=%s turn=%d health=%d head=%s ", 
                 state.game().id(), state.you().name(), personality, state.turn(), state.you().health(), state.you().head()));
         
         for (Move m : Move.values()) {
-            sb.append(m.name()).append(":[");
+            dsb.append(m.name()).append(":[");
             if (filtersApplied.containsKey(m)) {
-                sb.append("FILTERED_BY=").append(filtersApplied.get(m));
+                dsb.append("FILTERED_BY=").append(filtersApplied.get(m));
             } else if (totalScores.containsKey(m)) {
-                sb.append(String.format("total=%.1f ", totalScores.get(m)));
+                dsb.append(String.format("total=%.1f ", totalScores.get(m)));
                 Map<String, Double> b = breakdowns.get(m);
-                b.forEach((name, val) -> sb.append(String.format("%s=%.1f ", name, val.doubleValue())));
+                b.forEach((name, val) -> dsb.append(String.format("%s=%.1f ", name, val.doubleValue())));
             } else {
-                sb.append("SKIP");
+                dsb.append("SKIP");
             }
-            sb.append("] ");
+            dsb.append("] ");
         }
-        sb.append("chosen=").append(bestMove).append(String.format(" (%dms)", ctx.elapsedMillis()));
-        decisionLog.info(sb.toString());
+        dsb.append("chosen=").append(bestMove).append(String.format(" (%dms)", ctx.elapsedMillis()));
+        decisionLog.info(dsb.toString());
 
         log.info("[{}:{}] Turn {} | Head={} Health={} | Move={} ({}ms)",
                 state.game().id(), state.you().name(), state.turn(), state.you().head(), state.you().health(),

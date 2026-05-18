@@ -25,7 +25,7 @@ public class TerritorialBullyTest {
         Board board = new Board(11, 11, List.of(), List.of(you, enemy), List.of());
         GameState state = new GameState(new Game("test", null, 500), 1, board, you);
         
-        TurnContext ctx = TurnContext.from(state);
+        TurnContext ctx = TurnContext.from(state, Personality.BULLY);
         
         // Candidates from (1,1): (1,0) [DOWN], (2,1) [RIGHT]
         // (1,0) is closer to enemy head (0,0) and blocks their path to the right.
