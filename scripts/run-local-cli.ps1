@@ -1,5 +1,9 @@
 param (
-    [string]$Url = "http://localhost:8080",
+    [string]$Url1 = "http://localhost:8080",
+    [string]$Url2 = "http://localhost:8081",
+    [string]$Url3 = "http://localhost:8082",
+    [string]$Url4 = "http://localhost:8083",
+    [string]$Url5 = "http://localhost:8084",
     [int]$Width = 11,
     [int]$Height = 11,
     [switch]$Browser
@@ -20,10 +24,10 @@ if (!(Test-Path $cliPath)) {
     }
 }
 
-$args = @("play", "--name", "Snake-A", "--url", $Url, "--name", "Snake-B", "--url", $Url, "--width", $Width, "--height", $Height)
+$args = @("play", "--name", "Bully", "--url", $Url1, "--name", "Midas", "--url", $Url2, "--name", "Duelist", "--url", $Url3, "--name", "Parasite", "--url", $Url4, "--width", $Width, "--height", $Height)
 if ($Browser) {
     $args += "--browser"
 }
 
-Write-Host "Running local game: Snake-A vs Snake-B ($Width x $Height)" -ForegroundColor Cyan
+Write-Host "Running local game: Bully vs Midas vs Turtle vs Parasite vs Duelist ($Width x $Height)" -ForegroundColor Cyan
 & $cliPath @args

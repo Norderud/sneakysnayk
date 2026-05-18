@@ -222,6 +222,12 @@ public final class MoveScorer {
             if (enemyAreas[i] < enemy.length()) {
                 bonus += ScoringConstants.OPPONENT_TRAP_BONUS;
             }
+
+            // 3. Bully: smoothly reward reducing enemy space when they are getting cramped.
+            int threshold = enemy.length() * ScoringConstants.BULLY_AREA_THRESHOLD_MULT;
+            if (enemyAreas[i] < threshold) {
+                bonus += (threshold - enemyAreas[i]) * ScoringConstants.BULLY_SCORE_FACTOR;
+            }
         }
 
         return bonus / Math.max(1, enemies.size());

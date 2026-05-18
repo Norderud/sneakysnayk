@@ -67,6 +67,8 @@ where survival = area − TRAP_PENALTY                if area < myLength
 - **Trapped → no food bonus.** When `area < myLength` the food term is skipped entirely. Otherwise the food race (up to `FOOD_BONUS=10_000`) would dominate the (intentionally small) trap penalty and the bot would happily eat itself into a closed pocket.
 - "Strictly closer" check uses two BFS passes on `BoardGrid`: one from the candidate cell, one multi-source from all enemy heads. Bodies block; tail-vacate rule applies via `BoardGrid` construction. The enemy BFS also tracks the *closest enemy index* per cell so we can resolve ties: if `myDist == enemyDist` and we are **strictly longer** than the contesting enemy (we'd win the H2H), the food still counts. Equal-length ties are intentionally NOT contested — both snakes die.
 - The food bonus considers the *closest winnable* food (max over `1/(1+md)`).
+## Git & Commits
+- **Commit Messages**: Do NOT include the "Co-authored-by: Junie <junie@jetbrains.com>" trailer in commit messages unless explicitly requested.
 ## Key Conventions
 - **One-ply only.** Do not reintroduce minimax / Voronoi / multi-component heuristics without measuring latency — the project was simplified specifically because the prior design hit ~500 ms.
 - **Tail-freeing rule**: the last body segment is excluded from the blocked set when `body[last-1] != body[last]` (snake didn't eat last turn). Implemented in `BoardGrid.markSnakeBody()`.

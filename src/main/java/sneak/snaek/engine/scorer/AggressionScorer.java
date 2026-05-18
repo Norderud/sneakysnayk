@@ -6,11 +6,21 @@ import sneak.snaek.engine.MoveContext;
  * Scorer for aggression (H2H threats and trapping opponents).
  */
 public class AggressionScorer implements Scorer {
+    private final double multiplier;
+
+    public AggressionScorer() {
+        this(1.0);
+    }
+
+    public AggressionScorer(double multiplier) {
+        this.multiplier = multiplier;
+    }
+
     @Override
     public double score(MoveContext ctx) {
         if (ctx.trapped()) return 0.0;
         
         int myLength = ctx.turn().state().you().length();
-        return MoveScorer.aggressionBonus(ctx.next(), ctx.turn().enemies(), myLength, ctx.trapped(), ctx.owned());
+        return multiplier * MoveScorer.aggressionBonus(ctx.next(), ctx.turn().enemies(), myLength, ctx.trapped(), ctx.owned());
     }
 }
