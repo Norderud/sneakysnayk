@@ -5,6 +5,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
 import sneak.snaek.engine.ModularSnakeEngine;
+import sneak.snaek.engine.Personality;
+import sneak.snaek.engine.PersonalityEngineFactory;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.GameState;
 import sneak.snaek.model.Move;
@@ -26,7 +28,7 @@ public class FierceBattleSnakeApplication {
     private static final Logger log      = getLogger(FierceBattleSnakeApplication.class);
     /** Dedicated score logger — routed to logs/scores.log via logback.xml. */
     private static final Logger scoreLog = getLogger("score");
-    private static final ModularSnakeEngine snakeEngine = ModularSnakeEngine.createDefault();
+    private static ModularSnakeEngine snakeEngine;
     private static final Gson gson = new Gson();
 
     // Snake identity – configurable per-instance so two JVMs can run side-by-side
@@ -44,13 +46,16 @@ public class FierceBattleSnakeApplication {
         this.snakeColor = snakeColor;
     }
 
-    // Usage: java -jar app.jar [port] [name] [color]
-    //   java -jar app.jar 8080 "Snake-A" "#ff9900"
-    //   java -jar app.jar 8081 "Snake-B" "#00aaff"
+    // Usage: java -jar app.jar [port] [name] [color] [personality]
+    //   java -jar app.jar 8080 "Snake-A" "#ff9900" BULLY
+    //   java -jar app.jar 8081 "Snake-B" "#00aaff" MIDAS
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
         String color = args.length > 2 ? args[2] : "#FFFB00";
+        Personality personality = args.length > 3 ? Personality.fromString(args[3]) : Personality.BULLY;
+
+        snakeEngine = PersonalityEngineFactory.create(personality);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color);
@@ -60,7 +65,7 @@ public class FierceBattleSnakeApplication {
         server.createContext("/end", application::endSignal);
         server.setExecutor(null);
         server.start();
-        log.info("Server '{}' started on port {} (color={})", name, port, color);
+        log.info("Server '{}' started on port {} (color={}, personality={})", name, port, color, personality);
     }
 
     public void info(HttpExchange exchange) throws IOException {

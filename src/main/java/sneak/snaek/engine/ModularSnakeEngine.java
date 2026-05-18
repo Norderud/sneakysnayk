@@ -20,6 +20,12 @@ public class ModularSnakeEngine {
     
     private final List<MoveFilter> filters = new ArrayList<>();
     private final List<Scorer> scorers = new ArrayList<>();
+    private Personality personality = Personality.BULLY;
+
+    public ModularSnakeEngine setPersonality(Personality personality) {
+        this.personality = personality;
+        return this;
+    }
     
     public ModularSnakeEngine addFilter(MoveFilter filter) {
         filters.add(filter);
@@ -101,8 +107,8 @@ public class ModularSnakeEngine {
         
         // Log decision snapshot
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("gameId=%s name=%s turn=%d health=%d head=%s ", 
-                state.game().id(), state.you().name(), state.turn(), state.you().health(), state.you().head()));
+        sb.append(String.format("gameId=%s name=%s personality=%s turn=%d health=%d head=%s ", 
+                state.game().id(), state.you().name(), personality, state.turn(), state.you().health(), state.you().head()));
         
         for (Move m : Move.values()) {
             sb.append(m.name()).append(":[");
