@@ -139,11 +139,23 @@ public final class ScoringConstants {
 
     /** Bonus for trapping an opponent (reducing their Voronoi-owned area
      *  below their body length). Being the one who "seals the deal" on
-     *  an enemy's survival is high value. Sized significantly (400)
+     *  an enemy's survival is high value. Sized significantly (600)
      *  to outweigh a food chase or a comfortable length lead, but still
      *  below TRAP_PENALTY (2000) so we don't suicide to kill.
      *  Like H2H_KILL_BONUS, it scales down in multi-snake games. */
     public static final double OPPONENT_TRAP_BONUS = 600.0;
+
+    /** Multiplier for each cell we "take away" from an enemy's Voronoi
+     *  area when they are already getting cramped (area < 3*length).
+     *  Creates a smooth gradient of aggression that ramps up to the
+     *  OPPONENT_TRAP_BONUS. Sized so that squeezing an enemy by 10
+     *  cells is worth 500 pts (comparable to FOOD_BONUS). */
+    public static final double BULLY_SCORE_FACTOR = 50.0;
+
+    /** Area threshold multiplier for the Bully personality. We start
+     *  applying the BULLY_SCORE_FACTOR when an enemy's Voronoi area
+     *  drops below this multiple of their length. */
+    public static final int    BULLY_AREA_THRESHOLD_MULT = 3;
 
     /** Soft preference for cells closer to the board centre. Edges are
      *  more easily cut off (a wall already blocks one side). Sized small
@@ -170,6 +182,17 @@ public final class ScoringConstants {
      *  Sized significantly to discourage "greedy" moves into bad spots unless
      *  starving. */
     public static final double RISKY_FOOD_PENALTY = 300.0;
+
+    /** Bonus for moves that land adjacent to an enemy's tail.
+     *  The parasite personality uses this to shadow larger snakes.
+     *  Sized similar to TAIL_BONUS (100) - a strong positional tiebreaker. */
+    public static final double PARASITE_BONUS = 150.0;
+
+    /** Bonus for moves that land adjacent to ANY enemy's head, regardless of length.
+     *  The Duelist uses this to seek combat and force mistakes.
+     *  Note: HeadToHeadFilter still prunes moves that would lead to a certain loss,
+     *  so this only encourages "fair" or "favorable" H2H opportunities. */
+    public static final double DUELIST_BONUS = 300.0;
 
     private ScoringConstants() {}
 }

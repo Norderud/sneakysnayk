@@ -2,12 +2,12 @@ package sneak.snaek.engine;
 
 import sneak.snaek.board.BoardGrid;
 import sneak.snaek.board.CoordUtils;
+import sneak.snaek.engine.scorer.MoveScorer;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.Coord;
 import sneak.snaek.model.GameState;
 import sneak.snaek.model.Move;
 import sneak.snaek.strategy.Bfs;
-import sneak.snaek.engine.scorer.MoveScorer;
 import sneak.snaek.strategy.SurvivalArea;
 
 import java.util.HashSet;
@@ -25,9 +25,10 @@ public record TurnContext(
         Bfs.EnemyReach enemyReach,
         double foodWeight,
         Coord myTail,
-        long startTimeNanos
+        long startTimeNanos,
+        Personality personality
 ) {
-    public static TurnContext from(GameState state) {
+    public static TurnContext from(GameState state, Personality personality) {
         long start = System.nanoTime();
         BoardGrid grid = new BoardGrid(state);
         List<BattleSnake> enemies = state.board().snakes().stream()
@@ -52,7 +53,7 @@ public record TurnContext(
         
         Coord myTail = state.you().body().getLast();
         
-        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, start);
+        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, start, personality);
     }
     
     public long elapsedMillis() {
@@ -71,7 +72,12 @@ public record TurnContext(
         }
         boolean canReachTail = tailDist < Bfs.UNREACHABLE;
 
-        SurvivalArea.Area owned = SurvivalArea.compute(myDist, enemyReach, enemies, state.you().length(), grid);
+        // normally myArrival = md + 1. 
+        // But for DUELIST, we consider ourselves "equal" to enemies in speed for H2H areas.
+        boolean isDuelist = personality == Personality.DUELIST;
+        int myArrivalOffset = isDuelist ? 0 : 1;
+        
+        SurvivalArea.Area owned = SurvivalArea.compute(myDist, enemyReach, enemies, state.you().length(), grid, myArrivalOffset);
         // Trap detection: we are "trapped" if we lack enough physical room for our body (floodCount),
         // OR if the enemy "owns" enough space to squeeze us below our body length (rawCount).
         // This second condition (rawCount < length) triggers much earlier and avoids being

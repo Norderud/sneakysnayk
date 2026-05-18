@@ -1,9 +1,32 @@
 param (
-    [string]$Url = "http://localhost:8080",
     [int]$Width = 11,
     [int]$Height = 11,
     [switch]$Browser
 )
+
+# Access all arguments passed to the script via $args
+$Name = @()
+$Port = @()
+
+for ($i = 0; $i -lt $args.Count; $i++) {
+    $arg = $args[$i]
+    if ($arg -eq "-n" -or $arg -eq "-Name") {
+        $Name += $args[++$i]
+    } elseif ($arg -eq "-p" -or $arg -eq "-Port") {
+        $Port += $args[++$i]
+    }
+}
+
+# If no names/ports provided, use defaults
+if ($Name.Count -eq 0) {
+    $Name = @("Bully", "Midas", "Duelist", "Parasite")
+    $Port = @("8080", "8081", "8082", "8083")
+}
+
+if ($Name.Count -ne $Port.Count) {
+    Write-Error "Number of names must match number of ports."
+    return
+}
 
 # Find battlesnake executable: check project root, then PATH
 $cliPath = Join-Path $PSScriptRoot "..\battlesnake.exe"
@@ -20,10 +43,21 @@ if (!(Test-Path $cliPath)) {
     }
 }
 
-$args = @("play", "--name", "Snake-A", "--url", $Url, "--name", "Snake-B", "--url", $Url, "--width", $Width, "--height", $Height)
+$playArgs = @("play")
+for ($i = 0; $i -lt $Name.Count; $i++) {
+    $playArgs += "--name"
+    $playArgs += $Name[$i]
+    $playArgs += "--url"
+    $playArgs += "http://localhost:$($Port[$i])"
+}
+$playArgs += "--width"
+$playArgs += $Width
+$playArgs += "--height"
+$playArgs += $Height
+
 if ($Browser) {
-    $args += "--browser"
+    $playArgs += "--browser"
 }
 
-Write-Host "Running local game: Snake-A vs Snake-B ($Width x $Height)" -ForegroundColor Cyan
-& $cliPath @args
+Write-Host "Running local game: $($Name -join ' vs ') ($Width x $Height)" -ForegroundColor Cyan
+& $cliPath $playArgs

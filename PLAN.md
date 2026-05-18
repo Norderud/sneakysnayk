@@ -7,6 +7,14 @@ already implemented (kept here for context). Tackle from the top.
 
 ## ✅ Done
 
+- **Refined 2-ply look-ahead** — Fixed a bug in the simulator that miscalculated
+  head-to-head collisions as certain death, and normalized future scores to keep
+  them comparable to 1-ply moves. Also improved enemy prediction to include
+  basic collision avoidance.
+- **2-ply look-ahead (alpha-beta on the top-N candidates)** — Catch trap-by-many-turns
+  scenarios using a capped 2-ply search (our move + best enemy reply). Includes
+  a wallclock guard to respect game timeouts and a simplified state simulator.
+- **The Parasite personality** — Added shadowing behavior where the bot follows enemy tails.
 - **Eliminate `Coord` allocation in BFS inner loop** — Inlined `(±1, 0), (0, ±1)`
   deltas and added integer-based `isBlocked`/`isHazard` checks in `BoardGrid`.
   Significant reduction in short-lived objects during per-turn BFS.
@@ -50,46 +58,32 @@ already implemented (kept here for context). Tackle from the top.
 
 These behaviors shift the bot from "survival only" to active playstyles.
 
-### 1. The Territorial Bully (Aggressive Cornering)
+### 1. ✅ The Territorial Bully (Aggressive Cornering)
 *   **Behavior**: Minimize the space available to enemies.
-*   **Implementation**: Add a scorer that penalizes moves based on the size of the Voronoi area remaining for the closest enemy.
-*   **Complexity**: **Medium**. Requires computing `SurvivalArea` from the enemy's perspective for each of our candidate moves.
+*   **Implementation**: Smooth bonus for reducing enemy Voronoi area when they are getting cramped. Ramp up towards `OPPONENT_TRAP_BONUS`.
+*   **Update**: Increased `BULLY_SCORE_FACTOR` (50.0) and `BULLY_AREA_THRESHOLD_MULT` (3) for higher aggression.
+*   **Complexity**: **Medium**. Done via `SurvivalArea` and `AggressionScorer` update.
 
 ### 2. The Gatekeeper (Food/Path Blocking)
 *   **Behavior**: Intercept enemies on their way to food.
 *   **Implementation**: Identify high-value food for enemies (via BFS) and prioritize moves that put us on their shortest path if we can reach it first (and are longer).
 *   **Complexity**: **Medium**. Done via BFS backtracking and `TurnContext` pre-calculation.
 
-### 3. The Parasite (Enemy Tail Shadowing)
+### 3. ✅ The Parasite (Enemy Tail Shadowing)
 *   **Behavior**: Safely follow large snakes by sticking to their tails.
 *   **Implementation**: Score moves that land adjacent to an enemy's tail (which will be empty next turn).
-*   **Complexity**: **Low**. Simple extension of `TailScorer`.
+*   **Complexity**: **Low**. Done via `ParasiteScorer`.
+*   **Verification**: Added to `run-local-cli.ps1` and `benchmark.ps1`.
 
 ### 4. The Hoarder (Resource Denial)
 *   **Behavior**: Deny food to others even when healthy.
 *   *   **Implementation**: Increase `foodWeight` specifically for food items that an enemy is also pursuing.
 *   **Complexity**: **Low**. Conditional logic in `FoodScorer`.
 
-### 5. The Duelist (H2H Hunter)
+### 5. ✅ The Duelist (H2H Hunter)
 *   **Behavior**: Actively seek winning head-to-head collisions.
 *   **Implementation**: Higher bonuses for moves that threaten a smaller snake's head.
-*   **Complexity**: **Low**. Already partially in "Next Up".
-
----
-
-## 🔴 High value, high risk — only with measurement
-
-### 9. 2-ply look-ahead (alpha-beta on the top-N candidates)
-One-ply will *always* mispredict trap-by-many-turns scenarios. A capped
-2-ply (our move + best enemy reply) catches most of them.
-
-- Reintroduce `Simulator` / `SimState` (deleted earlier for latency).
-- Cap to top 2–3 of our candidates × top 2 enemy replies.
-- **Mandatory wallclock guard** (e.g. `EngineConfig.timeBudgetRatio = 0.7`
-  of `game.timeout()`).
-- This is the change that previously pushed the bot to ~500 ms — only
-  do it after #1–#5 above are exhausted, with logging proving one-ply
-  is the bottleneck.
+*   **Complexity**: **Low**. Done via `DuelistScorer` and `HeadToHeadFilter` refinements.
 
 ---
 
@@ -97,7 +91,9 @@ One-ply will *always* mispredict trap-by-many-turns scenarios. A capped
 
 ### Competitive Testing (A/B Testing)
 Run your latest build against a known stable version on your own machine.
-- Use `scripts/run-local-cli.ps1` with separate `-UrlA` and `-UrlB` arguments.
+- Use `scripts/benchmark.ps1` to run automated games between different versions/personalities.
+- Support for dynamic snake selection: `benchmark.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
+- Same for local runs: `run-local-cli.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
 - Distinguish outcomes in `logs/scores.log` by passing unique names to each instance.
 
 ### Score-log driven tuning
