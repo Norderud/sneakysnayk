@@ -2,8 +2,10 @@ package sneak.snaek.engine;
 
 import org.junit.jupiter.api.Test;
 import sneak.snaek.model.*;
+
 import java.util.List;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FoodStrategyTest {
@@ -32,7 +34,7 @@ public class FoodStrategyTest {
         // head (1,1) -> UP(1,2) [blocked], DOWN(1,0), LEFT(0,1), RIGHT(2,1)
         // To go to (5,5) we'd go RIGHT or UP (but UP is blocked).
         // To go to (0,0) we'd go DOWN or LEFT.
-        assertTrue(move == Move.RIGHT);
+        assertSame(move, Move.RIGHT);
     }
 
     @Test
@@ -78,7 +80,7 @@ public class FoodStrategyTest {
         Coord enemyHead = new Coord(5, 0);
         BattleSnake enemy = new BattleSnake("enemy", "enemy", 100, List.of(enemyHead, new Coord(4, 0)), "0", enemyHead, 2, "", "", null);
 
-        Coord contestedFood = new Coord(5, 3); // 2 from us, 3 from enemy
+        Coord contestedFood = new Coord(5, 2); // 3 from us, 2 from enemy
         Coord guaranteedFood = new Coord(8, 5); // 3 from us, 8 from enemy
 
         Board board = new Board(11, 11, List.of(contestedFood, guaranteedFood), List.of(you, enemy), List.of());
@@ -90,6 +92,6 @@ public class FoodStrategyTest {
 
         // head (5,5). contestedFood (5,3) -> DOWN. guaranteedFood (8,5) -> RIGHT.
         // contestedFood is closer, but has penalty.
-        assertTrue(move == Move.RIGHT);
+        assertSame(move, Move.RIGHT);
     }
 }
