@@ -7,6 +7,13 @@ already implemented (kept here for context). Tackle from the top.
 
 ## ✅ Done
 
+- **Refined 2-ply look-ahead** — Fixed a bug in the simulator that miscalculated
+  head-to-head collisions as certain death, and normalized future scores to keep
+  them comparable to 1-ply moves. Also improved enemy prediction to include
+  basic collision avoidance.
+- **2-ply look-ahead (alpha-beta on the top-N candidates)** — Catch trap-by-many-turns
+  scenarios using a capped 2-ply search (our move + best enemy reply). Includes
+  a wallclock guard to respect game timeouts and a simplified state simulator.
 - **The Parasite personality** — Added shadowing behavior where the bot follows enemy tails.
 - **Eliminate `Coord` allocation in BFS inner loop** — Inlined `(±1, 0), (0, ±1)`
   deltas and added integer-based `isBlocked`/`isHazard` checks in `BoardGrid`.
@@ -80,28 +87,13 @@ These behaviors shift the bot from "survival only" to active playstyles.
 
 ---
 
-## 🔴 High value, high risk — only with measurement
-
-### 9. 2-ply look-ahead (alpha-beta on the top-N candidates)
-One-ply will *always* mispredict trap-by-many-turns scenarios. A capped
-2-ply (our move + best enemy reply) catches most of them.
-
-- Reintroduce `Simulator` / `SimState` (deleted earlier for latency).
-- Cap to top 2–3 of our candidates × top 2 enemy replies.
-- **Mandatory wallclock guard** (e.g. `EngineConfig.timeBudgetRatio = 0.7`
-  of `game.timeout()`).
-- This is the change that previously pushed the bot to ~500 ms — only
-  do it after #1–#5 above are exhausted, with logging proving one-ply
-  is the bottleneck.
-
----
-
 ## 🧪 Cross-cutting
 
 ### Competitive Testing (A/B Testing)
 Run your latest build against a known stable version on your own machine.
 - Use `scripts/benchmark.ps1` to run automated games between different versions/personalities.
 - Support for dynamic snake selection: `benchmark.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
+- Same for local runs: `run-local-cli.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
 - Distinguish outcomes in `logs/scores.log` by passing unique names to each instance.
 
 ### Score-log driven tuning
