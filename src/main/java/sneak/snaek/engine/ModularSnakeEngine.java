@@ -25,6 +25,10 @@ public class ModularSnakeEngine {
     private final List<Scorer> scorers = new ArrayList<>();
     private Personality personality = Personality.BULLY;
 
+    public Personality getPersonality() {
+        return personality;
+    }
+
     public ModularSnakeEngine setPersonality(Personality personality) {
         this.personality = personality;
         return this;

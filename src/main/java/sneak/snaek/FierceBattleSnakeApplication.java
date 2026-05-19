@@ -28,7 +28,6 @@ public class FierceBattleSnakeApplication {
     private static final Logger log      = getLogger(FierceBattleSnakeApplication.class);
     /** Dedicated score logger — routed to logs/scores.log via logback.xml. */
     private static final Logger scoreLog = getLogger("score");
-    private static ModularSnakeEngine snakeEngine;
     private static final Gson gson = new Gson();
 
     // Snake identity – configurable per-instance so two JVMs can run side-by-side
@@ -41,9 +40,13 @@ public class FierceBattleSnakeApplication {
 
     //ssh -N -o ServerAliveInterval=60 -R 8091:localhost:8080 -p 2222 battlesnake@devign-snake.dev.mastercard.int
 
-    public FierceBattleSnakeApplication(String snakeName, String snakeColor) {
+    private final Map<String, ModularSnakeEngine> engineCache = new ConcurrentHashMap<>();
+    private final Personality defaultPersonality;
+
+    public FierceBattleSnakeApplication(String snakeName, String snakeColor, Personality defaultPersonality) {
         this.snakeName  = snakeName;
         this.snakeColor = snakeColor;
+        this.defaultPersonality = defaultPersonality;
     }
 
     // Usage: java -jar app.jar [port] [name] [color] [personality]
@@ -52,20 +55,34 @@ public class FierceBattleSnakeApplication {
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
-        String color = args.length > 2 ? args[2] : "#fafafa";
+        String color = args.length > 2 ? args[2] : "#f6bd60";
         Personality personality = args.length > 3 ? Personality.fromString(args[3]) : Personality.BULLY;
 
-        snakeEngine = PersonalityEngineFactory.create(personality);
+        log.info("Starting application with name={}, color={}, personality={}", name, color, personality);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color);
+        FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color, personality);
         server.createContext("/", application::info);
         server.createContext("/start", application::startSignal);
         server.createContext("/move", application::move);
         server.createContext("/end", application::endSignal);
         server.setExecutor(null);
         server.start();
-        log.info("Server '{}' started on port {} (color={}, personality={})", name, port, color, personality);
+        log.info("Server '{}' started on port {} (color={}, defaultPersonality={})", name, port, color, personality);
+    }
+
+    private ModularSnakeEngine getEngineForGame(GameState state) {
+        String ruleset = state.game().ruleset().name();
+        return engineCache.computeIfAbsent(ruleset, r -> {
+            Personality personality = switch (r) {
+                case "duel" -> Personality.DUELIST;
+                case "constrictor" -> Personality.TURTLE;
+                case "wrapped" -> Personality.MIDAS; // Often FFA-like, growth helps
+                default -> defaultPersonality;
+            };
+            log.info("Created engine for ruleset '{}' with personality '{}'", r, personality);
+            return PersonalityEngineFactory.create(personality);
+        });
     }
 
     public void info(HttpExchange exchange) throws IOException {
@@ -101,7 +118,10 @@ public class FierceBattleSnakeApplication {
 
     public void move(HttpExchange exchange) throws IOException {
         GameState game = gson.fromJson(new InputStreamReader(exchange.getRequestBody()), GameState.class);
-        Move move = snakeEngine.move(game);
+        ModularSnakeEngine engine = getEngineForGame(game);
+        log.info("Move requested for ruleset '{}', using engine with personality '{}'", 
+                game.game().ruleset().name(), engine.getPersonality());
+        Move move = engine.move(game);
         String jsonResponse = gson.toJson(singletonMap("move", move.name().toLowerCase()));
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, jsonResponse.getBytes().length);
