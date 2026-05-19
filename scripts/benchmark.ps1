@@ -47,14 +47,17 @@ Write-Host "Benchmark started at $startTime" -ForegroundColor Cyan
 $snakeNames = $snakes | ForEach-Object { $_.Name }
 Write-Host "Running $Games games between: $($snakeNames -join ', ')" -ForegroundColor Cyan
 
-# Find battlesnake executable
-$cliPath = Join-Path $PSScriptRoot "..\battlesnake.exe"
+# Find battlesnake executable: check rules engine dir, then project root, then PATH
+$cliPath = "C:\Users\e117387\workspaces\random\rules\battlesnake.exe"
+if (!(Test-Path $cliPath)) {
+    $cliPath = Join-Path $PSScriptRoot "..\battlesnake.exe"
+}
 if (!(Test-Path $cliPath)) {
     $cli = Get-Command battlesnake -ErrorAction SilentlyContinue
     if ($cli) {
         $cliPath = $cli.Source
     } else {
-        Write-Error "BattleSnake CLI not found."
+        Write-Error "BattleSnake CLI not found. Expected at: C:\Users\e117387\workspaces\random\rules\battlesnake.exe"
         return
     }
 }

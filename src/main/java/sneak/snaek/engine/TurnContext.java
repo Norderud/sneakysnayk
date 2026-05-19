@@ -2,6 +2,7 @@ package sneak.snaek.engine;
 
 import sneak.snaek.board.BoardGrid;
 import sneak.snaek.board.CoordUtils;
+import sneak.snaek.board.VacateMap;
 import sneak.snaek.engine.scorer.MoveScorer;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.Coord;
@@ -9,6 +10,7 @@ import sneak.snaek.model.GameState;
 import sneak.snaek.model.Move;
 import sneak.snaek.strategy.Bfs;
 import sneak.snaek.strategy.SurvivalArea;
+import sneak.snaek.strategy.TimedBfs;
 
 import java.util.HashSet;
 import java.util.List;
@@ -16,6 +18,12 @@ import java.util.Set;
 
 /**
  * Context for a single turn, holding pre-calculated data used by filters and scorers.
+ *
+ * <p>The {@code vacate} grid is non-null iff time-aware flood is enabled
+ * on the engine's {@link EngineConfig}. When non-null, both
+ * {@link #enemyReach} (computed here) and per-candidate {@code myDist}
+ * (computed in {@link #createMoveContext}) are produced by
+ * {@link TimedBfs}; otherwise the legacy {@link Bfs} static-wall path.
  */
 public record TurnContext(
         GameState state,
@@ -26,20 +34,28 @@ public record TurnContext(
         double foodWeight,
         Coord myTail,
         long startTimeNanos,
-        Personality personality
+        Personality personality,
+        int[][] vacate
 ) {
     public static TurnContext from(GameState state, Personality personality) {
+        return from(state, personality, new EngineConfig());
+    }
+
+    public static TurnContext from(GameState state, Personality personality, EngineConfig config) {
         long start = System.nanoTime();
         BoardGrid grid = new BoardGrid(state);
         List<BattleSnake> enemies = state.board().snakes().stream()
                 .filter(s -> !s.id().equals(state.you().id()))
                 .toList();
-        
+
         Set<Coord> food = new HashSet<>(
                 state.board().food() != null ? state.board().food() : List.of());
-        
-        Bfs.EnemyReach enemyReach = Bfs.computeEnemyReach(grid, enemies);
-        
+
+        int[][] vacate = config.timeAwareFlood ? VacateMap.from(state) : null;
+        Bfs.EnemyReach enemyReach = (vacate != null)
+                ? TimedBfs.computeEnemyReach(grid, vacate, enemies)
+                : Bfs.computeEnemyReach(grid, enemies);
+
         boolean inHazard = false;
         for (Coord seg : state.you().body()) {
             if (grid.isHazard(seg)) {
@@ -47,24 +63,27 @@ public record TurnContext(
                 break;
             }
         }
-        
+
         double foodWeight = MoveScorer.computeFoodWeight(
                 state.you().length(), state.you().health(), inHazard, enemies);
-        
+
         Coord myTail = state.you().body().getLast();
-        
-        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, start, personality);
+
+        return new TurnContext(state, grid, enemies, food, enemyReach, foodWeight, myTail, start, personality, vacate);
     }
-    
+
     public long elapsedMillis() {
         return (System.nanoTime() - startTimeNanos) / 1_000_000;
     }
-    
+
     public MoveContext createMoveContext(Move move) {
         Coord next = CoordUtils.neighbor(state.you().head(), move);
-        int[][] myDist = Bfs.from(grid, List.of(next));
-        
-        int tailDist = 0;
+        // sourceArrivalTurn = 1: we'll be at `next` after our move (turn 1 from now).
+        int[][] myDist = (vacate != null)
+                ? TimedBfs.from(grid, vacate, List.of(next), 1)
+                : Bfs.from(grid, List.of(next));
+
+        int tailDist;
         if (myTail.x() >= 0 && myTail.x() < grid.getWidth() && myTail.y() >= 0 && myTail.y() < grid.getHeight()) {
             tailDist = myDist[myTail.x()][myTail.y()];
         } else {
@@ -72,16 +91,12 @@ public record TurnContext(
         }
         boolean canReachTail = tailDist < Bfs.UNREACHABLE;
 
-        // normally myArrival = md + 1. 
-        // But for DUELIST, we consider ourselves "equal" to enemies in speed for H2H areas.
         boolean isDuelist = personality == Personality.DUELIST;
         int myArrivalOffset = isDuelist ? 0 : 1;
-        
+
         SurvivalArea.Area owned = SurvivalArea.compute(myDist, enemyReach, enemies, state.you().length(), grid, myArrivalOffset);
-        // Trap detection: we are "trapped" if we lack enough physical room for our body (floodCount),
-        // OR if the enemy "owns" enough space to squeeze us below our body length (rawCount).
-        // This second condition (rawCount < length) triggers much earlier and avoids being
-        // slowly lured into corners or pressured against walls.
+        // Trap detection unchanged: floodCount is the *time-aware* reachable count;
+        // rawCount is Voronoi-owned. Both must clear our body length.
         boolean trapped = owned.floodCount() < state.you().length() || owned.rawCount() < state.you().length();
 
         return new MoveContext(this, move, next, myDist, owned, trapped, canReachTail, tailDist);

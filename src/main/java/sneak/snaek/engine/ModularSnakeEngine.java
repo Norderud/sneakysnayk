@@ -24,6 +24,8 @@ public class ModularSnakeEngine {
     private final List<MoveFilter> filters = new ArrayList<>();
     private final List<Scorer> scorers = new ArrayList<>();
     private Personality personality = Personality.BULLY;
+    private EngineConfig config = new EngineConfig();
+    private GameMode mode = GameMode.STANDARD;
 
     public Personality getPersonality() {
         return personality;
@@ -33,6 +35,20 @@ public class ModularSnakeEngine {
         this.personality = personality;
         return this;
     }
+
+    public ModularSnakeEngine setConfig(EngineConfig config) {
+        this.config = config;
+        return this;
+    }
+
+    public ModularSnakeEngine setMode(GameMode mode) {
+        this.mode = mode;
+        return this;
+    }
+
+    public EngineConfig config() { return config; }
+    public GameMode mode() { return mode; }
+    public Personality personality() { return personality; }
     
     public ModularSnakeEngine addFilter(MoveFilter filter) {
         filters.add(filter);
@@ -60,7 +76,7 @@ public class ModularSnakeEngine {
     }
     
     public Map<Move, Double> scoreMoves(GameState state) {
-        TurnContext ctx = TurnContext.from(state, personality);
+        TurnContext ctx = TurnContext.from(state, personality, config);
         Set<Move> moves = new HashSet<>(Arrays.asList(Move.values()));
         
         // 1. Apply filters
@@ -82,7 +98,7 @@ public class ModularSnakeEngine {
     }
 
     public Move move(GameState state) {
-        TurnContext ctx = TurnContext.from(state, personality);
+        TurnContext ctx = TurnContext.from(state, personality, config);
         
         Set<Move> moves = new HashSet<>(Arrays.asList(Move.values()));
         Map<Move, String> filtersApplied = new HashMap<>();
@@ -127,10 +143,10 @@ public class ModularSnakeEngine {
             }
 
             // 3. Optional 2-ply lookahead
-            if (EngineConfig.enableLookahead && initialScores.size() > 1) {
+            if (config.enableLookahead && initialScores.size() > 1) {
                 initialScores.sort(Comparator.comparingDouble(MoveScore::score).reversed());
-                int candidatesToCheck = Math.min(initialScores.size(), EngineConfig.lookaheadCandidates);
-                int timeLimit = (int) (state.game().timeout() * EngineConfig.timeBudgetRatio);
+                int candidatesToCheck = Math.min(initialScores.size(), config.lookaheadCandidates);
+                int timeLimit = (int) (state.game().timeout() * config.timeBudgetRatio);
 
                 for (int i = 0; i < candidatesToCheck; i++) {
                     if (ctx.elapsedMillis() > timeLimit) {
@@ -160,8 +176,8 @@ public class ModularSnakeEngine {
         
         // Log decision snapshot
         StringBuilder dsb = new StringBuilder();
-        dsb.append(String.format("gameId=%s name=%s personality=%s turn=%d health=%d head=%s ", 
-                state.game().id(), state.you().name(), personality, state.turn(), state.you().health(), state.you().head()));
+        dsb.append(String.format("gameId=%s name=%s mode=%s personality=%s turn=%d health=%d head=%s ",
+                state.game().id(), state.you().name(), mode, personality, state.turn(), state.you().health(), state.you().head()));
         
         for (Move m : Move.values()) {
             dsb.append(m.name()).append(":[");
@@ -169,6 +185,11 @@ public class ModularSnakeEngine {
                 dsb.append("FILTERED_BY=").append(filtersApplied.get(m));
             } else if (totalScores.containsKey(m)) {
                 dsb.append(String.format("total=%.1f ", totalScores.get(m)));
+                MoveContext logMctx = ctx.createMoveContext(m);
+                dsb.append(String.format("flood=%d raw=%d tflood=%s ",
+                        logMctx.owned().floodCount(),
+                        logMctx.owned().rawCount(),
+                        ctx.vacate() != null ? String.valueOf(logMctx.owned().floodCount()) : "off"));
                 Map<String, Double> b = breakdowns.get(m);
                 b.forEach((name, val) -> dsb.append(String.format("%s=%.1f ", name, val.doubleValue())));
             } else {
@@ -188,35 +209,65 @@ public class ModularSnakeEngine {
 
     private double evaluateLookahead(GameState state, Move ourMove, double currentScore, int timeLimit, TurnContext ctx) {
         List<BattleSnake> enemies = ctx.enemies();
-        
+
         if (enemies.isEmpty()) return currentScore;
 
-        Map<String, Move> moves = new HashMap<>();
-        moves.put(state.you().id(), ourMove);
-        
+        // Build per-enemy candidate-move lists.
+        // K=1 (default): one best-guess move per enemy (legacy expectimax).
+        // K>1: enumerate K plausible moves per enemy, simulate every
+        //      combination, and take the *worst* outcome — true paranoid
+        //      minimax. Used by DUEL (K=3, single opponent ⇒ 3 sims).
+        int k = Math.max(1, config.enemyMovesPerCandidate);
+        List<List<Move>> enemyMoves = new ArrayList<>(enemies.size());
         for (BattleSnake enemy : enemies) {
-            Move enemyMove = predictEnemyMove(state, enemy, ctx);
-            moves.put(enemy.id(), enemyMove);
+            enemyMoves.add(predictEnemyMoves(state, enemy, ctx, k));
         }
 
+        double worstFutureScore = Double.POSITIVE_INFINITY;
+        int[] indices = new int[enemies.size()];
+        boolean anyEvaluated = false;
+        outer:
+        while (true) {
+            if (ctx.elapsedMillis() > timeLimit) break;
+
+            Map<String, Move> moves = new HashMap<>();
+            moves.put(state.you().id(), ourMove);
+            for (int e = 0; e < enemies.size(); e++) {
+                moves.put(enemies.get(e).id(), enemyMoves.get(e).get(indices[e]));
+            }
+
+            double s = scoreJointMove(state, moves);
+            if (s < worstFutureScore) worstFutureScore = s;
+            anyEvaluated = true;
+
+            // Increment combination indices (n-ary counter across enemy lists)
+            int e = 0;
+            while (e < enemies.size()) {
+                indices[e]++;
+                if (indices[e] < enemyMoves.get(e).size()) break;
+                indices[e] = 0;
+                e++;
+            }
+            if (e == enemies.size()) break outer;
+        }
+
+        if (!anyEvaluated) return currentScore;
+
+        // current + discounted (paranoid) future, normalized to 1-ply scale
+        return (currentScore + 0.9 * worstFutureScore) / 1.9;
+    }
+
+    /** Simulates one joint-move step and returns our best 1-ply score from the resulting state. */
+    private double scoreJointMove(GameState state, Map<String, Move> moves) {
         GameState nextState = sneak.snaek.sim.Simulator.step(state, moves);
-        if (nextState.you() == null) {
-            return -1000000.0; // Death
-        }
-
+        if (nextState.you() == null) return -1000000.0;       // Death
         Map<Move, Double> nextScores = scoreMoves(nextState);
-        if (nextScores.isEmpty()) {
-            return -500000.0; // Trap
-        }
-        
-        double bestNextScore = nextScores.values().stream().max(Double::compare).orElse(0.0);
-        
-        // current + discounted future, normalized to 1-ply scale
-        return (currentScore + 0.9 * bestNextScore) / 1.9;
+        if (nextScores.isEmpty()) return -500000.0;            // Fully trapped
+        return nextScores.values().stream().max(Double::compare).orElse(0.0);
     }
 
     private double totalScoreForMove(GameState state, Move move) {
-        TurnContext ctx = TurnContext.from(state, personality);
+        TurnContext ctx = TurnContext.from(state, personality, config);
         MoveContext mctx = ctx.createMoveContext(move);
         double total = 0;
         for (Scorer s : scorers) total += s.score(mctx);
@@ -228,42 +279,48 @@ public class ModularSnakeEngine {
     }
 
     private Move predictEnemyMove(GameState state, BattleSnake enemy, TurnContext ctx) {
-        Set<Move> moves = new HashSet<>(Arrays.asList(Move.values()));
-        Coord head = enemy.head();
-        moves.removeIf(m -> ctx.grid().isBlocked(CoordUtils.neighbor(head, m)));
-        
-        if (moves.isEmpty()) return Move.UP;
-        if (moves.size() == 1) return moves.iterator().next();
+        return predictEnemyMoves(state, enemy, ctx, 1).get(0);
+    }
 
-        // Heuristic: stay away from our head if we are longer (avoid H2H death)
-        // and stay closer to center.
-        Move best = null;
-        double bestScore = Double.NEGATIVE_INFINITY;
+    /**
+     * Returns up to {@code k} plausible moves for {@code enemy}, ranked
+     * best-first by the same heuristic as the single-prediction version
+     * (center pull + asymmetric H2H avoidance when we're longer).
+     * Always returns at least one move so the caller can iterate safely.
+     */
+    private List<Move> predictEnemyMoves(GameState state, BattleSnake enemy, TurnContext ctx, int k) {
+        Set<Move> safe = new HashSet<>(Arrays.asList(Move.values()));
+        Coord head = enemy.head();
+        safe.removeIf(m -> ctx.grid().isBlocked(CoordUtils.neighbor(head, m)));
+
+        if (safe.isEmpty()) return List.of(Move.UP);
+        if (safe.size() == 1 || k <= 1) {
+            // Fall through to ranking even for k=1 so the top pick is deterministic.
+        }
+
         Coord center = new Coord(state.board().width() / 2, state.board().height() / 2);
         Coord ourHead = state.you().head();
         boolean weAreLonger = state.you().length() >= enemy.length();
 
-        for (Move m : moves) {
+        List<MoveScore> ranked = new ArrayList<>(safe.size());
+        for (Move m : safe) {
             Coord n = CoordUtils.neighbor(head, m);
             double score = 0;
-            
-            // Distance to center (Chebyshev)
             int distCenter = Math.max(Math.abs(n.x() - center.x()), Math.abs(n.y() - center.y()));
             score -= distCenter * 10;
-            
-            // Avoid our head if we are dangerous
             if (weAreLonger) {
                 int distUs = CoordUtils.manhattanDistance(n, ourHead);
-                if (distUs <= 1) score -= 1000; // Very dangerous
-                else if (distUs == 2) score -= 100; // Getting close
+                if (distUs <= 1) score -= 1000;
+                else if (distUs == 2) score -= 100;
             }
-
-            if (best == null || score > bestScore) {
-                bestScore = score;
-                best = m;
-            }
+            ranked.add(new MoveScore(m, score));
         }
-        return best;
+        ranked.sort(Comparator.comparingDouble(MoveScore::score).reversed());
+
+        int take = Math.min(k, ranked.size());
+        List<Move> out = new ArrayList<>(take);
+        for (int i = 0; i < take; i++) out.add(ranked.get(i).move());
+        return out;
     }
 
     private record MoveScore(Move move, double score) {}

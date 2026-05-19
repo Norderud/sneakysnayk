@@ -55,8 +55,8 @@ public class LookaheadTest {
         GameState state = new GameState(game, 1, board, you);
 
         ModularSnakeEngine engine = ModularSnakeEngine.createDefault();
-        
-        EngineConfig.enableLookahead = true;
+
+        engine.config().enableLookahead = true;
         Move move = engine.move(state);
         
         // It should avoid (1,1) if it leads to death.

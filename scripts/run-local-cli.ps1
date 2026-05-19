@@ -28,8 +28,11 @@ if ($Name.Count -ne $Port.Count) {
     return
 }
 
-# Find battlesnake executable: check project root, then PATH
-$cliPath = Join-Path $PSScriptRoot "..\battlesnake.exe"
+# Find battlesnake executable: check rules engine dir, then project root, then PATH
+$cliPath = "C:\Users\e117387\workspaces\random\rules\battlesnake.exe"
+if (!(Test-Path $cliPath)) {
+    $cliPath = Join-Path $PSScriptRoot "..\battlesnake.exe"
+}
 if (!(Test-Path $cliPath)) {
     $cli = Get-Command battlesnake -ErrorAction SilentlyContinue
     if ($cli) {
@@ -37,8 +40,8 @@ if (!(Test-Path $cliPath)) {
     } else {
         Write-Host "--- BattleSnake CLI not found ---" -ForegroundColor Yellow
         Write-Host "To run games locally, you need the 'battlesnake' CLI."
-        Write-Host "We tried to build it from the 'rules' directory, but it might be missing."
-        Write-Host "Place 'battlesnake.exe' in the project root or your PATH."
+        Write-Host "Expected at: C:\Users\e117387\workspaces\random\rules\battlesnake.exe"
+        Write-Host "Or place 'battlesnake.exe' in the project root or your PATH."
         return
     }
 }

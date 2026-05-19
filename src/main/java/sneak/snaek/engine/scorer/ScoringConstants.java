@@ -194,6 +194,51 @@ public final class ScoringConstants {
      *  so this only encourages "fair" or "favorable" H2H opportunities. */
     public static final double DUELIST_BONUS = 300.0;
 
+    // -----------------------------------------------------------------------
+    // Royale (ShrinkZoneScorer)
+    // -----------------------------------------------------------------------
+
+    /** Penalty applied to cells that will become hazard within
+     *  {@link #SHRINK_LOOKAHEAD_TURNS}. Scaled by how soon the shrink
+     *  reaches the cell — full penalty for cells on the immediate next
+     *  shrink ring, fading linearly for deeper cells. Sized larger than
+     *  WALL_PENALTY (50) but smaller than HAZARD_PENALTY (250) so it's
+     *  a strong "don't loiter near the edge" signal in Royale without
+     *  forbidding it outright. */
+    public static final double SHRINK_ZONE_PENALTY = 150.0;
+
+    /** How many turns ahead to project hazard rings for Royale shrink
+     *  planning. Default 5 ≈ 1 shrink window for the standard 25-turn
+     *  schedule plus headroom — enough time to retreat one ring at
+     *  1 cell/turn, but not so long that randomness of which side
+     *  shrinks first overwhelms the signal. */
+    public static final int SHRINK_LOOKAHEAD_TURNS = 8;
+
+    // -----------------------------------------------------------------------
+    // Constrictor (CompactnessScorer)
+    // -----------------------------------------------------------------------
+
+    /** Heavy penalty when our head ends up Manhattan-adjacent to our own
+     *  tail. In Constrictor the tail never recedes, so head-on-tail
+     *  proximity is an imminent self-collision next turn. Sized at
+     *  TRAP_PENALTY / 2 — much larger than positional tiebreakers, but
+     *  still below the hard trap penalty so it can be overridden when
+     *  every other move is genuinely worse. */
+    public static final double COMPACTNESS_PENALTY = 1_000.0;
+
+    /** Reward for keeping head ↔ tail Manhattan distance ≥
+     *  {@code length × COMPACTNESS_STRETCH_FRACTION}. Sized similar to
+     *  STRETCH_BONUS but stronger and only awarded when the snake is
+     *  meaningfully extended. */
+    public static final double COMPACTNESS_STRETCH_BONUS = 200.0;
+
+    /** Fraction of body length at which the head→tail distance is
+     *  considered "fully stretched" for {@link CompactnessScorer}.
+     *  Tuned so that even a moderate zig-zag earns the full bonus
+     *  (a perfectly straight snake has d=length, so 0.6 means at least
+     *  ~60% of optimum stretch). */
+    public static final double COMPACTNESS_STRETCH_FRACTION = 0.6;
+
     private ScoringConstants() {}
 }
 
