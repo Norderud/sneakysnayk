@@ -83,8 +83,8 @@ public class FierceBattleSnakeApplication {
             response.put("apiversion", "1");
             response.put("author", "Sneaksnaek");
             response.put("color", snakeColor);
-            response.put("head", "beluga");
-            response.put("tail", "do-sammy");
+            response.put("head", "shades");
+            response.put("tail", "block-bum");
             String jsonResponse = gson.toJson(response);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, jsonResponse.getBytes().length);

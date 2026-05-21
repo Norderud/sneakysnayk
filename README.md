@@ -2,24 +2,18 @@
 
 A [BattleSnake](https://play.battlesnake.com) bot written in Java 21. No web framework — just `com.sun.net.httpserver.HttpServer`, Gson for JSON, and SLF4J/Logback for logs.
 
-The decision logic is intentionally **simple, fast, and one-ply**: for every legal move, score it once, pick the highest. No minimax, no game-tree search. Average decision time is ~1 ms, well under the 500 ms BattleSnake budget.
+The decision logic is a **modular pipeline of filters and scorers**, with optional **2-ply lookahead** (our move + best enemy reply) for high-stakes games. It balances deep survival analysis with a strict time budget (targeting <50ms per decision), well under the 500ms BattleSnake budget.
 
 ---
 
 ## How a turn is decided
 
-When BattleSnake POSTs `/move` with the current game state, the bot runs three steps in [`SnakeEngine.move()`](src/main/java/sneak/snaek/SnakeEngine.java):
+When BattleSnake POSTs `/move` with the current game state, the bot runs the following steps in [`ModularSnakeEngine.move()`](src/main/java/sneak/snaek/engine/ModularSnakeEngine.java):
 
-1. **Safety filter** — eliminate moves that are immediately suicidal:
-   - off the board
-   - into any snake's body (with the "tail vacates next turn" rule respected)
-   - into a square an equal-or-longer enemy could also reach this turn (we'd lose the head-to-head)
-
-2. **Hoist per-turn data** — compute things that are the same for every candidate move once, not three times:
-   - **Enemy reach map** — multi-source BFS from every enemy head: how many steps each cell is from the closest enemy, and *which* enemy that is.
-   - **Food weight** — how aggressively to chase food this turn (drops as our length lead grows).
-
-3. **Score every remaining move** with [`MoveScorer.score()`](src/main/java/sneak/snaek/strategy/MoveScorer.java) and pick the highest. Each move's score breakdown is logged so you can see *why* it was picked.
+1. **Safety filters** — Prune moves that would cause immediate death (OOB, body collision, or losing a head-to-head against a longer snake).
+2. **Turn Context** — Compute shared data once per turn (grid state, enemy reach map via multi-source BFS, food weights, and hazard status).
+3. **1-Ply Scoring** — For each surviving candidate move, calculate a score based on Survival Area (Voronoi), Food distance, Tail proximity, and Aggression.
+4. **2-Ply Lookahead** (Optional) — If enabled and time allows, simulate the top-N candidate moves and the most likely enemy responses to pick the move with the best projected outcome.
 
 If only one move survives the safety filter, it's returned immediately.
 
@@ -27,19 +21,21 @@ If only one move survives the safety filter, it's returned immediately.
 
 ## The scoring function — plain English
 
-For a candidate move, we'd land on a cell called `next`. From `next` we run a single BFS to know the shortest path distance to every other cell. Then we add up:
+For a candidate move, we land on a cell called `next`. From `next` we run a single BFS to calculate distances to all reachable cells. Then we sum all active scorers:
 
-| Term | What it asks | Sign |
+| Term | What it asks | Personality |
 |---|---|---|
-| **Survival (Voronoi area)** | "How much room do I actually own after the move?" | + |
-| **Trap penalty** | "Is that room smaller than my body?" | − |
-| **Hazard penalty** | "Did I just step on hot lava?" | − |
-| **H2H aggression** | "Am I threatening a smaller snake's head?" | + |
-| **Tail-chase bonus** | "Am I following my own tail safely?" | + |
-| **Centre bonus** | "Did I move toward the middle, away from walls?" | + |
-| **Food bonus** | "Will I reach a food before any enemy can?" | + |
+| **Survival (Voronoi area)** | "How much room do I actually own after the move?" | ALL |
+| **Trap penalty** | "Is that room smaller than my body?" | ALL |
+| **Hazard penalty** | "Did I just step on hot lava?" | ALL |
+| **H2H aggression** | "Am I threatening a smaller snake's head?" | BULLY |
+| **Tail-chase bonus** | "Am I following my own tail safely?" | TURTLE |
+| **Centre bonus** | "Did I move toward the middle, away from walls?" | ALL |
+| **Food bonus** | "Will I reach a food before any enemy can?" | MIDAS |
+| **Duelist bonus** | "Am I seeking head-to-head combat?" | DUELIST |
+| **Parasite bonus** | "Am I shadowing a larger snake's tail?" | PARASITE |
 
-The final score is just the sum. Highest wins.
+The final score is a weighted sum based on the active **Personality**.
 
 ### 1. Survival — Voronoi area (the most important term)
 
@@ -83,13 +79,16 @@ The bonus weight smoothly decays once we're more than `4` longer than the longes
 
 ---
 
-## Why no game-tree search?
+## Why the hybrid approach?
 
-A previous version of this bot did 2-ply minimax with Voronoi and several heuristics. It was strong but hit ~500 ms — right at the response budget cliff. The current bot:
+The bot uses a **1-ply greedy** foundation with **Voronoi area control** because it catches most mistakes (like sealing oneself in) without the overhead of deep search.
 
-- Uses **2 BFS per turn** (one from each candidate cell + one from all enemies, hoisted).
-- Runs in well under 5 ms even on a 25×25 board.
-- Catches most "trap" mistakes via the Voronoi survival term — the same insight a 2-ply search would give us, without simulating moves.
+However, for competitive play (DUEL or ROYALE), it upgrades to **2-ply lookahead** (minimax-lite):
+- **Predicts** enemy moves based on center-pull and collision avoidance.
+- **Simulates** the joint move state.
+- **Re-scores** the resulting board to detect traps that only appear several turns ahead.
+
+This hybrid approach keeps the bot extremely fast (~1ms for 90% of turns) while providing the tactical depth needed for high-level play.
 
 See [`PLAN.md`](PLAN.md) for the ranked list of further improvements (and which ones to avoid without measurement).
 
@@ -119,13 +118,9 @@ See [`AGENTS.md`](AGENTS.md) for build quirks, deployment tunnels, and conventio
 
 Two log streams (configured in [`logback.xml`](src/main/resources/logback.xml)):
 
-- **Application log → console.** Every turn prints a one-line summary with the chosen move and full score breakdown:
-  ```
-  Turn 137 | Head=Coord[x=6, y=5] Health=100 | Move=RIGHT total=541.3 survival=84.0 food=500.0 tail=14.3 h2h=0.0 centre=25.0 hazard=-0.0 trapped=false owned=156 (0ms)
-  ```
-  Set Logback to `DEBUG` on `sneak.snaek.SnakeEngine` to also see the breakdown for every candidate move (not just the chosen one).
-
-- **Battle outcomes → `logs/scores.log`.** One line per game with result, opponent names, mode, turn count, and survivors. Useful for tracking win-rate per opponent over time.
+- **Application log → console.** Every turn prints a one-line summary with the chosen move and full score breakdown.
+- **Decision log → `logs/decisions.log`.** Detailed breakdown of every candidate move, including filter results and individual scorer outputs.
+- **Battle outcomes → `logs/scores.log`.** One line per game with result, opponent names, mode, turn count, and survivors.
 
 ---
 
@@ -134,11 +129,10 @@ Two log streams (configured in [`logback.xml`](src/main/resources/logback.xml)):
 | Path | What it is |
 |---|---|
 | `sneak.snaek.FierceBattleSnakeApplication` | HTTP server + request routing |
-| `sneak.snaek.SnakeEngine` | Decision orchestrator (safety filter + scoring loop) |
-| `sneak.snaek.engine.scorer.MoveScorer` | All scoring logic & tunable constants live here |
-| `sneak.snaek.board.BoardGrid` | Board representation (blocked cells, hazards, food) |
-| `sneak.snaek.board.CoordUtils` | Coord arithmetic, neighbours, Manhattan distance |
+| `sneak.snaek.engine.ModularSnakeEngine` | Decision orchestrator (filters + scoring loop + lookahead) |
+| `sneak.snaek.engine.scorer.Scorer` | Individual scoring components (Survival, Food, etc.) |
+| `sneak.snaek.board.BoardGrid` | Board representation (blocked cells, hazards, food, tail-vacate) |
 | `sneak.snaek.model.*` | Immutable Java records for BattleSnake JSON API |
 
-To **tune behaviour**, all knobs are constants at the top of `MoveScorer` — each one is documented with its role, scale, and rationale.
+To **tune behaviour**, all knobs are constants in `sneak.snaek.engine.scorer.ScoringConstants` — each one is documented with its role, scale, and rationale.
 

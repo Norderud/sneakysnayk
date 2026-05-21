@@ -59,15 +59,28 @@ You can test different versions or configurations against each other by launchin
 
 ```bash
 # Terminal 1: Version A
-java -jar target/app.jar 8080 "Version-A" "#ff0000"
+java -jar target/super-sneyk-1.0-SNAPSHOT-jar-with-dependencies.jar 8080 "Version-A" "#ff0000"
 
 # Terminal 2: Version B
-java -jar target/app.jar 8081 "Version-B" "#0000ff"
+java -jar target/super-sneyk-1.0-SNAPSHOT-jar-with-dependencies.jar 8081 "Version-B" "#0000ff"
 
 # Run CLI against both
 battlesnake play --name "A" --url http://localhost:8080 --name "B" --url http://localhost:8081
 ```
 
-## 5. Decision Logs
+## 5. Benchmarking
+
+Use `scripts/benchmark.ps1` to run multiple games automatically and collect win-rate statistics:
+
+```powershell
+.\scripts\benchmark.ps1 -Games 100 -GameType duel
+```
+
+You can also compare different personalities by specifying names and ports:
+```powershell
+.\scripts\benchmark.ps1 -Games 20 -n Bully -p 8080 -n Midas -p 8081
+```
+
+## 6. Decision Logs
 
 Always check `logs/decisions.log` after a move to see the scores assigned to each candidate. This is the best way to understand *why* a move was chosen.

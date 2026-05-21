@@ -91,7 +91,7 @@ These behaviors shift the bot from "survival only" to active playstyles.
 
 ### Competitive Testing (A/B Testing)
 Run your latest build against a known stable version on your own machine.
-- Use `scripts/benchmark.ps1` to run automated games between different versions/personalities.
+- Use `scripts/benchmark.ps1` to run automated games between different versions/personalities. Supports `-GameType` (standard, duel, royale, constrictor, solo).
 - Support for dynamic snake selection: `benchmark.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
 - Same for local runs: `run-local-cli.ps1 -n Bully -p 8080 -n Duelist -p 8081`.
 - Distinguish outcomes in `logs/scores.log` by passing unique names to each instance.

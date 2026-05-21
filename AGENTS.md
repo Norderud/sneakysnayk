@@ -16,7 +16,6 @@ java -jar target/super-sneyk-1.0-SNAPSHOT-jar-with-dependencies.jar
 # Also produces target/battlesnake.zip (deployment archive via zip.xml assembly)
 ```
 
-> ⚠️ `pom.xml` `<mainClass>` references a stale package (`com.mastercard.e117387.snaeksneak`). The real entry point is `sneak.snaek.FierceBattleSnakeApplication`.
 
 **Multi-instance launch** — `main()` accepts optional `[port] [name] [color]` args. Personality is no longer a CLI flag — `GameMode` auto-selects per game.
 
@@ -32,7 +31,7 @@ ssh -N -o ServerAliveInterval=60 -R 8091:localhost:8080 -p 2222 battlesnake@devi
 ssh -N -o ServerAliveInterval=60 -R 8092:localhost:8081 -p 2222 battlesnake@devign-snake.dev.mastercard.int
 ```
 
-**Local benchmarking** — `scripts/benchmark.ps1` and `scripts/run-local-cli.ps1` run games against the official Battlesnake rules engine. They look for `battlesnake.exe` in this order: `C:\Users\e117387\workspaces\random\rules\battlesnake.exe`, the project root, then `PATH`.
+**Local benchmarking** — `scripts/benchmark.ps1` and `scripts/run-local-cli.ps1` run games against the official Battlesnake rules engine. They look for `battlesnake.exe` in this order: `C:\Users\e117387\workspaces\random\rules\battlesnake.exe`, the project root, then `PATH`. `benchmark.ps1` supports a `-GameType` parameter (e.g. `standard`, `solo`, `wrapped`).
 
 **Dependencies**: Gson (JSON), SLF4J + Logback (logging via `org.slf4j.Logger` / `getLogger`).
 
