@@ -8,8 +8,6 @@ import sneak.snaek.engine.GameMode;
 import sneak.snaek.engine.ModeDetector;
 import sneak.snaek.engine.ModeStrategyFactory;
 import sneak.snaek.engine.ModularSnakeEngine;
-import sneak.snaek.engine.Personality;
-import sneak.snaek.engine.PersonalityEngineFactory;
 import sneak.snaek.model.BattleSnake;
 import sneak.snaek.model.GameState;
 import sneak.snaek.model.Move;
@@ -65,7 +63,7 @@ public class FierceBattleSnakeApplication {
     public static void main(String[] args) throws IOException {
         int    port  = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
         String name  = args.length > 1 ? args[1] : "Sneaksnaek";
-        String color = args.length > 2 ? args[2] : "#fafafa";
+        String color = args.length > 2 ? args[2] : "#f6bd60";
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         FierceBattleSnakeApplication application = new FierceBattleSnakeApplication(name, color);

@@ -1,5 +1,6 @@
 param(
-    [int]$Games = 10
+    [int]$Games = 10,
+    [string]$GameType = "standard"
 )
 
 # Access all arguments passed to the script via $args
@@ -64,7 +65,7 @@ if (!(Test-Path $cliPath)) {
 
 for ($i = 1; $i -le $Games; $i++) {
     # Build the command arguments
-    $argList = @("play")
+    $argList = @("play", "-g", $GameType)
     foreach ($s in $snakes) {
         $argList += "-u"
         $argList += $s.Url
