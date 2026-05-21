@@ -5,7 +5,6 @@ logs/
 # Binaries
 *.exe
 *.zip
-*.jar
 
 # IDE
 .idea/
